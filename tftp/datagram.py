@@ -1,7 +1,7 @@
 '''
 @author: shylent
 '''
-from tftp.errors import (BinaryProtocolError, InvalidOpcodeError, 
+from tftp.errors import (WireProtocolError, InvalidOpcodeError, 
     PayloadDecodeError, InvalidErrorcodeError)
 import struct
 
@@ -36,7 +36,7 @@ def split_opcode(datagram):
     try:
         return struct.unpack("!H", datagram[:2])[0], datagram[2:]
     except struct.error:
-        raise BinaryProtocolError()
+        raise WireProtocolError()
 
 class TFTPDatagram(object):
     

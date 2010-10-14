@@ -5,21 +5,23 @@
 class TFTPError(Exception):
     pass
 
-class BinaryProtocolError(TFTPError):
+class WireProtocolError(TFTPError):
     pass
 
 
-class InvalidOpcodeError(BinaryProtocolError):
-    
+class InvalidOpcodeError(WireProtocolError):
+
     def __init__(self, opcode):
+
         super(InvalidOpcodeError, self).__init__("Invalid opcode: %s" % opcode)
 
-class PayloadDecodeError(BinaryProtocolError):
+class PayloadDecodeError(WireProtocolError):
     pass
 
 class InvalidErrorcodeError(PayloadDecodeError):
     
     def __init__(self, errorcode):
+        self.errorcode = errorcode
         super(InvalidErrorcodeError, self).__init__("Unknown error code: %s" % errorcode)
         
 class BackendError(TFTPError):
