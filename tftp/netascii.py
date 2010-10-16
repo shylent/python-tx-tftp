@@ -72,18 +72,18 @@ class NetasciiSenderProxy(object):
         self.reader = reader
         self.buffer = ''
 
-    def read(self, bytes):
-        need_bytes = bytes - len(self.buffer)
+    def read(self, size):
+        need_bytes = size - len(self.buffer)
         if need_bytes <= 0:
-            data, self.buffer = self.buffer[:bytes], self.buffer[bytes:]
+            data, self.buffer = self.buffer[:size], self.buffer[size:]
             return succeed(data)
         d = maybeDeferred(self.reader.read, need_bytes)
-        d.addCallback(self.gotDataFromReader, bytes)
+        d.addCallback(self.gotDataFromReader, size)
         return d
 
-    def gotDataFromReader(self, data, bytes):
+    def gotDataFromReader(self, data, size):
         data = self.buffer + to_netascii(data)
-        data, self.buffer = data[:bytes], data[bytes:]
+        data, self.buffer = data[:size], data[size:]
         return data
 
     def __getattr__(self, name):

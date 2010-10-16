@@ -14,7 +14,7 @@ A Twisted-based TFTP implementation
  - Fully-tested internals (wire protocol, conversions, backend).
 
 ##Plans
- - Docstrings.
+ - <del>Docstrings</del>More docstrings.
  - Tests for the actual protocol.
  - I will factor out the functionality, that is common to the client and the server
  and add a convenient interface for sending/receiving files.
