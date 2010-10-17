@@ -40,7 +40,7 @@ class WriteSession(DatagramProtocol):
         elif datagram.opcode == OP_ERROR:
             log.msg("Got error: " % datagram)
             self.writer.cancel()
-            self.watchdog_timer.cancel()
+            self.timeout_watchdog.cancel()
             self.transport.stopListening()
 
     def tftp_DATA(self, datagram):
