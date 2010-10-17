@@ -7,7 +7,7 @@ from tftp.datagram import (TFTPDatagramFactory, split_opcode, OP_WRQ,
 from tftp.errors import (FileExists, Unsupported, AccessViolation, BackendError,
     FileNotFound)
 from tftp.netascii import NetasciiReceiverProxy
-from tftp.session import WriteSession, ReadSession
+from tftp.session import RemoteOriginWriteSession, RemoteOriginReadSession
 from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
@@ -48,7 +48,7 @@ class TFTP(DatagramProtocol):
                     self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
                                         "Unknown transfer mode %s, - expected "
                                         "'netascii' or 'octet' (case-insensitive)").to_wire(), addr)
-                session = WriteSession(addr, writer)
+                session = RemoteOriginWriteSession(addr, writer)
                 my_port = self._free_port()
                 reactor.listenUDP(my_port, session)
         elif datagram.opcode == OP_RRQ:
@@ -70,6 +70,6 @@ class TFTP(DatagramProtocol):
                     self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
                                         "Unknown transfer mode %s, - expected "
                                         "'netascii' or 'octet' (case-insensitive)").to_wire(), addr)
-                session = ReadSession(addr, reader)
+                session = RemoteOriginReadSession(addr, reader)
                 my_port = self._free_port()
                 reactor.listenUDP(my_port, session)

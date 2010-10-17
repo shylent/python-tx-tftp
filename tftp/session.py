@@ -22,12 +22,23 @@ class WriteSession(DatagramProtocol):
         self.completed = False
         self.timeout_watchdog = None
 
+    def _resetWatchdog(self, timeout):
+        if self.timeout_watchdog is not None:
+            self.timeout_watchdog.reset(timeout)
+        else:
+            self.timeout_watchdog = reactor.callLater(timeout, self.timedOut)
+
+    def cancel(self):
+        if self.timeout_watchdog is not None:
+            self.timeout_watchdog.cancel()
+        self.writer.cancel()
+        self.transport.stopListening()
+
     def startProtocol(self):
         addr = self.transport.getHost()
         log.msg("Write session started on %s, remote: %s" % (addr, self.remote))
         self.transport.connect(*self.remote)
-        self.timeout_watchdog = reactor.callLater(self.timeout, self.timedOut)
-        self.transport.write(ACKDatagram(self.blocknum).to_wire())
+        self._resetWatchdog(self.timeout)
 
     def datagramReceived(self, datagram, addr):
         if self.remote[1] != addr[1]:
@@ -39,9 +50,7 @@ class WriteSession(DatagramProtocol):
             self.tftp_DATA(datagram)
         elif datagram.opcode == OP_ERROR:
             log.msg("Got error: " % datagram)
-            self.writer.cancel()
-            self.timeout_watchdog.cancel()
-            self.transport.stopListening()
+            self.cancel()
 
     def tftp_DATA(self, datagram):
         next_blocknum = self.blocknum + 1
@@ -58,7 +67,7 @@ class WriteSession(DatagramProtocol):
                 ERR_ILLEGAL_OP, "Block number mismatch").to_wire())
 
     def nextBlock(self, datagram):
-        self.timeout_watchdog.reset(self.timeout)
+        self._resetWatchdog(self.timeout)
         self.blocknum += 1
         d = maybeDeferred(self.writer.write, datagram.data)
         d.addCallbacks(callback=self.blockWriteSuccess, callbackArgs=[datagram, ],
@@ -68,9 +77,7 @@ class WriteSession(DatagramProtocol):
     def blockWriteFailure(self, failure):
         log.err("Failed to write to the local file", failure)
         self.transport.write(ERRORDatagram.from_code(ERR_DISK_FULL).to_wire())
-        self.watchdog_timeout.cancel()
-        self.writer.cancel()
-        self.transport.stopListening()
+        self.cancel()
 
     def blockWriteSuccess(self, ign, datagram):
         self.transport.write(ACKDatagram(datagram.blocknum).to_wire())
@@ -85,6 +92,25 @@ class WriteSession(DatagramProtocol):
         else:
             log.msg("Timed out after a successful transfer")
         self.transport.stopListening()
+
+
+class LocalOriginWriteSession(WriteSession):
+
+    def __init__(self, remote, writer, handshake_timeout_watchdog):
+        self._handshake_timeout_watchdog = handshake_timeout_watchdog
+        WriteSession.__init__(self, remote, writer)
+
+    def nextBlock(self, datagram):
+        if self._handshake_timeout_watchdog.active():
+            self._handshake_timeout_watchdog.cancel()
+        WriteSession.nextBlock(self, datagram)
+
+
+class RemoteOriginWriteSession(WriteSession):
+
+    def startProtocol(self):
+        WriteSession.startProtocol(self)
+        self.transport.write(ACKDatagram(self.blocknum).to_wire())
 
 
 class ReadSession(DatagramProtocol):
@@ -102,7 +128,6 @@ class ReadSession(DatagramProtocol):
         addr = self.transport.getHost()
         log.msg("Read session started on %s, remote: %s" % (addr, self.remote))
         self.transport.connect(*self.remote)
-        self.nextBlock()
 
     def datagramReceived(self, datagram, addr):
         if self.remote[1] != addr[1]:
@@ -167,3 +192,20 @@ class ReadSession(DatagramProtocol):
         log.err(fail)
         self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, "Read failed").to_wire())
         self.transport.stopListening()
+
+class LocalOriginReadSession(ReadSession):
+
+    def __init__(self, remote, reader, handshake_timeout_watchdog):
+        self._handshake_timeout_watchdog = handshake_timeout_watchdog
+        ReadSession.__init__(self, remote, reader)
+
+    def nextBlock(self):
+        if self._handshake_timeout_watchdog.active():
+            self._handshake_timeout_watchdog.cancel()
+        ReadSession.nextBlock(self)
+
+class RemoteOriginReadSession(ReadSession):
+
+    def startProtocol(self):
+        ReadSession.startProtocol(self)
+        self.nextBlock()
