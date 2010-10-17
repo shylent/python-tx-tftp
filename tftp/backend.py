@@ -87,7 +87,7 @@ class IWriter(interface.Interface):
         """Attempt to write the data
 
         @return: C{None} or a L{Deferred}, that will fire with C{None} (any errors,
-        that were occured during the write will be available in an errback)
+        that occured during the write will be available in an errback)
         @rtype: C{NoneType} or L{Deferred}
 
         """
