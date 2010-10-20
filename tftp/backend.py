@@ -79,6 +79,12 @@ class IReader(interface.Interface):
 
         """
 
+    def finish():
+        """Release the resources, that were acquired by this reader and make sure,
+        that no additional data will be returned.
+
+        """
+
 
 class IWriter(interface.Interface):
     """An object, that performs writes on request of the TFTP protocol"""
@@ -122,7 +128,7 @@ class FilesystemReader(object):
             self.file_obj = self.file_path.open('r')
         except IOError:
             raise FileNotFound(self.file_path)
-        self.eof = False
+        self.state = 'active'
 
     def read(self, size):
         """
@@ -132,13 +138,22 @@ class FilesystemReader(object):
         @rtype: C{str}
 
         """
-        if self.eof:
+        if self.state in ('eof', 'finished'):
             return ''
         data = self.file_obj.read(size)
         if not data:
-            self.eof = True
+            self.state = 'eof'
             self.file_obj.close()
         return data
+
+    def finish(self):
+        """
+        @see: L{IReader.finish}
+
+        """
+        if self.state not in ('eof', 'finished'):
+            self.file_obj.close()
+        self.state = 'finished'
 
 
 class FilesystemWriter(object):
@@ -166,6 +181,7 @@ class FilesystemWriter(object):
         self.file_path = file_path
         self.destination_file = self.file_path.open('w')
         self.temp_destination = tempfile.TemporaryFile()
+        self.state = 'active'
 
     def write(self, data):
         """
@@ -179,19 +195,24 @@ class FilesystemWriter(object):
         @see: L{IWriter.finish}
 
         """
-        self.temp_destination.seek(0)
-        shutil.copyfileobj(self.temp_destination, self.destination_file)
-        self.temp_destination.close()
-        self.destination_file.close()
+        if self.state not in ('finished', 'cancelled'):
+            self.temp_destination.seek(0)
+            shutil.copyfileobj(self.temp_destination, self.destination_file)
+            self.temp_destination.close()
+            self.destination_file.close()
+            self.state = 'finished'
 
     def cancel(self):
         """
         @see: L{IWriter.cancel}
 
         """
-        self.temp_destination.close()
-        self.destination_file.close()
-        self.file_path.remove()
+        if self.state not in ('finished', 'cancelled'):
+            self.temp_destination.close()
+            self.destination_file.close()
+            self.file_path.remove()
+            self.state = 'cancelled'
+
 
 class FilesystemSynchronousBackend(object):
     """A synchronous filesystem backend.

@@ -15,18 +15,22 @@ class WriteSession(DatagramProtocol):
     block_size = 512
     timeout = 10
 
-    def __init__(self, remote, writer):
+    def __init__(self, remote, writer, _clock=None):
         self.writer = writer
         self.remote = remote
         self.blocknum = 0
         self.completed = False
         self.timeout_watchdog = None
+        if _clock is None:
+            self._clock = reactor
+        else:
+            self._clock = _clock
 
     def _resetWatchdog(self, timeout):
         if self.timeout_watchdog is not None:
             self.timeout_watchdog.reset(timeout)
         else:
-            self.timeout_watchdog = reactor.callLater(timeout, self.timedOut)
+            self.timeout_watchdog = self._clock.callLater(timeout, self.timedOut)
 
     def cancel(self):
         if self.timeout_watchdog is not None:
@@ -117,12 +121,22 @@ class ReadSession(DatagramProtocol):
     block_size = 512
     timeout = (3, 5, 10)
 
-    def __init__(self, remote, reader):
+    def __init__(self, remote, reader, _clock=None):
         self.remote = remote
         self.reader = reader
         self.blocknum = 0
         self.completed = False
         self.timeout_watchdog = None
+        if _clock is None:
+            self._clock = reactor
+        else:
+            self._clock = _clock
+
+    def cancel(self):
+        self.reader.finish()
+        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
+            self.timeout_watchdog.cancel()
+        self.transport.stopListening()
 
     def startProtocol(self):
         addr = self.transport.getHost()
@@ -139,17 +153,17 @@ class ReadSession(DatagramProtocol):
             self.tftp_ACK(datagram)
         elif datagram.opcode == OP_ERROR:
             log.msg("Got error: " % datagram)
-            self.transport.stopListening()
+            self.cancel()
 
     def tftp_ACK(self, datagram):
         if datagram.blocknum < self.blocknum:
             log.msg("Duplicate ACK for blocknum %s" % datagram.blocknum)
         elif datagram.blocknum == self.blocknum:
-            if self.timeout_watchdog.active():
+            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
                 self.timeout_watchdog.cancel()
             if self.completed:
                 log.msg("Final ACK received, transfer successful")
-                self.transport.stopListening()
+                self.cancel()
             else:
                 self.nextBlock()
         else:
@@ -167,7 +181,7 @@ class ReadSession(DatagramProtocol):
         if len(data) < self.block_size:
             self.completed = True
         bytes = DATADatagram(self.blocknum, data).to_wire()
-        self.timeout_watchdog = reactor.callLater(self.timeout[0],
+        self.timeout_watchdog = self._clock.callLater(self.timeout[0],
                                                   self.retrySendData, bytes, 0)
         self.sendData(bytes)
 
@@ -178,10 +192,10 @@ class ReadSession(DatagramProtocol):
         except IndexError:
             log.msg("Session timed out, last wait was %s seconds long" %
                         self.timeout[timeout_ind])
-            self.transport.stopListening()
+            self.cancel()
         else:
             log.msg("Retrying after the %s second wait" % self.timeout[timeout_ind])
-            self.timeout_watchdog = reactor.callLater(next_timeout, self.retrySendData,
+            self.timeout_watchdog = self._clock.callLater(next_timeout, self.retrySendData,
                                                       bytes, next_timeout_ind)
             self.sendData(bytes)
 
@@ -191,7 +205,7 @@ class ReadSession(DatagramProtocol):
     def readFailed(self, fail):
         log.err(fail)
         self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, "Read failed").to_wire())
-        self.transport.stopListening()
+        self.cancel()
 
 class LocalOriginReadSession(ReadSession):
 
