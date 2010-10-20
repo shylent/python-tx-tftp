@@ -171,6 +171,7 @@ anotherline"""
         self.rs.blocknum = 1
         ack_datgram = ACKDatagram(1)
         self.rs.datagramReceived(ack_datgram.to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
         self.failIf(self.transport.disconnecting)
         data_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(data_datagram.data, 'line1')
@@ -185,8 +186,10 @@ anotherline"""
         # Send a terminating datagram
         ack_datgram = ACKDatagram(1)
         self.rs.datagramReceived(ack_datgram.to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
         ack_datgram = ACKDatagram(2)
         self.rs.datagramReceived(ack_datgram.to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
 
         self.assertEqual(self.transport.value(), DATADatagram(2, self.test_data).to_wire())
         self.failUnless(self.rs.completed,
@@ -200,18 +203,18 @@ anotherline"""
         ack_datgram = ACKDatagram(1)
         self.rs.datagramReceived(ack_datgram.to_wire(), ('127.0.0.1', 65465))
 
-        self.clock.advance(4)
+        self.clock.pump((1,)*4)
         # Sent two times - initial send and a retransmit after first timeout
         self.assertEqual(self.transport.value(),
                          DATADatagram(2, self.test_data[:5]).to_wire()*2)
 
         # Sent three times - initial send and two retransmits
-        self.clock.advance(5)
+        self.clock.pump((1,)*5)
         self.assertEqual(self.transport.value(),
                          DATADatagram(2, self.test_data[:5]).to_wire()*3)
 
         # Sent still three times - initial send, two retransmits and the last wait
-        self.clock.advance(10)
+        self.clock.pump((1,)*10)
         self.assertEqual(self.transport.value(),
                          DATADatagram(2, self.test_data[:5]).to_wire()*3)
 

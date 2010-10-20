@@ -1,13 +1,14 @@
 '''
 @author: shylent
 '''
-from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN, 
-    TFTPDatagramFactory, split_opcode, OP_DATA, OP_ERROR, ERR_ILLEGAL_OP, 
+from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN,
+    TFTPDatagramFactory, split_opcode, OP_DATA, OP_ERROR, ERR_ILLEGAL_OP,
     ERR_DISK_FULL, OP_ACK, DATADatagram, ERR_NOT_DEFINED)
 from twisted.internet import reactor
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
+from tftp.util import SequentialCall
 
 
 class WriteSession(DatagramProtocol):
@@ -134,7 +135,7 @@ class ReadSession(DatagramProtocol):
 
     def cancel(self):
         self.reader.finish()
-        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
+        if self.timeout_watchdog is not None:
             self.timeout_watchdog.cancel()
         self.transport.stopListening()
 
@@ -159,7 +160,7 @@ class ReadSession(DatagramProtocol):
         if datagram.blocknum < self.blocknum:
             log.msg("Duplicate ACK for blocknum %s" % datagram.blocknum)
         elif datagram.blocknum == self.blocknum:
-            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
+            if self.timeout_watchdog is not None:
                 self.timeout_watchdog.cancel()
             if self.completed:
                 log.msg("Final ACK received, transfer successful")
@@ -181,31 +182,25 @@ class ReadSession(DatagramProtocol):
         if len(data) < self.block_size:
             self.completed = True
         bytes = DATADatagram(self.blocknum, data).to_wire()
-        self.timeout_watchdog = self._clock.callLater(self.timeout[0],
-                                                  self.retrySendData, bytes, 0)
-        self.sendData(bytes)
-
-    def retrySendData(self, bytes, timeout_ind):
-        next_timeout_ind = timeout_ind + 1
-        try:
-            next_timeout = self.timeout[next_timeout_ind]
-        except IndexError:
-            log.msg("Session timed out, last wait was %s seconds long" %
-                        self.timeout[timeout_ind])
-            self.cancel()
-        else:
-            log.msg("Retrying after the %s second wait" % self.timeout[timeout_ind])
-            self.timeout_watchdog = self._clock.callLater(next_timeout, self.retrySendData,
-                                                      bytes, next_timeout_ind)
-            self.sendData(bytes)
-
-    def sendData(self, bytes):
-        self.transport.write(bytes)
+        self.timeout_watchdog = SequentialCall.run(self.timeout[:-1],
+            callable=self.sendData, callable_args=[bytes, ],
+            on_timeout=lambda: self._clock.callLater(self.timeout[-1], self.timedOut),
+            run_now=True,
+            _clock=self._clock
+        )
 
     def readFailed(self, fail):
         log.err(fail)
         self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, "Read failed").to_wire())
         self.cancel()
+
+    def timedOut(self):
+        log.msg("Session timed out, last wait was %s seconds long" % self.timeout[-1])
+        self.cancel()
+
+    def sendData(self, bytes):
+        self.transport.write(bytes)
+
 
 class LocalOriginReadSession(ReadSession):
 
