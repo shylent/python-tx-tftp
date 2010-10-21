@@ -25,8 +25,8 @@ class SequentialCall(object):
     @type timeout: any iterable
 
     @param run_now: whether or not the callable should be called immediately
-    upon initialization. Does not relinquish control to the reactor (does not invoke
-    C{callLater}). Default: C{False}.
+    upon initialization. Relinquishes control to the reactor
+    (calls callLater(0,...)). Default: C{False}.
     @type run_now: C{bool}
 
     @param callable: the callable, that will be called at the specified intervals

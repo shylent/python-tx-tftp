@@ -4,7 +4,8 @@
 from tftp.backend import FilesystemWriter, FilesystemReader
 from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN,
     ERR_NOT_DEFINED, DATADatagram, TFTPDatagramFactory, split_opcode)
-from tftp.session import WriteSession, ReadSession
+from tftp.session import (WriteSession, ReadSession, LocalOriginWriteSession,
+    LocalOriginReadSession)
 from twisted.internet import reactor
 from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
@@ -176,7 +177,7 @@ anotherline"""
         data_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(data_datagram.data, 'line1')
         self.failIf(self.rs.completed,
-                    "Got engough bytes from the reader, there is no reason to stop")
+                    "Got enough bytes from the reader, there is no reason to stop")
         self.addCleanup(self.rs.cancel)
 
     def test_ACK_finished(self):
@@ -184,11 +185,11 @@ anotherline"""
         self.rs.blocknum = 1
 
         # Send a terminating datagram
-        ack_datgram = ACKDatagram(1)
-        self.rs.datagramReceived(ack_datgram.to_wire(), ('127.0.0.1', 65465))
+        ack_datagram = ACKDatagram(1)
+        self.rs.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
-        ack_datgram = ACKDatagram(2)
-        self.rs.datagramReceived(ack_datgram.to_wire(), ('127.0.0.1', 65465))
+        ack_datagram = ACKDatagram(2)
+        self.rs.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
 
         self.assertEqual(self.transport.value(), DATADatagram(2, self.test_data).to_wire())
@@ -220,6 +221,105 @@ anotherline"""
 
         self.failUnless(self.transport.disconnecting)
 
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir_path)
+
+
+class MockHandshakeWatchdog(object):
+
+    def __init__(self, when, f, args=None, kwargs=None, _clock=None):
+        self._clock = _clock
+        self.when = when
+        self.f = f
+        self.args = args or []
+        self.kwargs = kwargs or {}
+        if _clock is None:
+            self._clock = reactor
+        else:
+            self._clock = _clock
+
+    def start(self):
+        self.wd = self._clock.callLater(self.when, self.f, *self.args, **self.kwargs)
+
+    def cancel(self):
+        if self.wd.active():
+            self.wd.cancel()
+
+    def active(self):
+        return self.wd.active()
+
+
+class BootstrapLocalOriginWrite(unittest.TestCase):
+
+    port = 65466
+
+    def setUp(self):
+        self.tmp_dir_path = tempfile.mkdtemp()
+        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.writer = FilesystemWriter(self.target)
+        self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.clock = Clock()
+        self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
+        self.wd = MockHandshakeWatchdog(2, self.ws.cancel, _clock=self.clock)
+        self.ws.handshake_timeout_watchdog = self.wd
+        self.ws.transport = self.transport
+
+    def test_local_origin_write_session(self):
+        self.ws.startProtocol()
+        self.clock.advance(3)
+        self.failIf(self.transport.value())
+        self.failUnless(self.transport.disconnecting)
+
+    def test_local_origin_write_session_handshake_success(self):
+        self.ws.startProtocol()
+        self.clock.advance(1)
+        data_datagram = DATADatagram(1, 'foobar')
+        self.ws.datagramReceived(data_datagram.to_wire(), ('127.0.0.1', 65465))
+        self.failUnless(self.transport.value())
+        self.failIf(self.transport.disconnecting)
+        self.failIf(self.wd.active())
+        self.addCleanup(self.ws.cancel)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir_path)
+
+
+class BootstrapLocalOriginRead(unittest.TestCase):
+    test_data = """line1
+line2
+anotherline"""
+    port = 65466
+
+    def setUp(self):
+        self.tmp_dir_path = tempfile.mkdtemp()
+        self.target = FilePath(self.tmp_dir_path).child('foo')
+        with self.target.open('wb') as temp_fd:
+            temp_fd.write(self.test_data)
+        self.reader = FilesystemReader(self.target)
+        self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.clock = Clock()
+        self.rs = LocalOriginReadSession(('127.0.0.1', 65465), self.reader, _clock=self.clock)
+        self.wd = MockHandshakeWatchdog(2, self.rs.cancel, _clock=self.clock)
+        self.rs.handshake_timeout_watchdog = self.wd
+        self.rs.transport = self.transport
+
+    def test_local_origin_read_session(self):
+        self.rs.startProtocol()
+        self.clock.advance(3)
+        self.failIf(self.transport.value())
+        self.failUnless(self.transport.disconnecting)
+
+    def test_local_origin_read_session_handshake_success(self):
+        self.rs.startProtocol()
+        self.clock.advance(1)
+        ack_datagram = ACKDatagram(0)
+        self.rs.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1) # because we relinquish control to the reactor
+        self.failUnless(self.transport.value())
+        self.failIf(self.transport.disconnecting)
+        self.failIf(self.wd.active())
+        self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)

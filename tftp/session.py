@@ -101,14 +101,20 @@ class WriteSession(DatagramProtocol):
 
 class LocalOriginWriteSession(WriteSession):
 
-    def __init__(self, remote, writer, handshake_timeout_watchdog):
-        self._handshake_timeout_watchdog = handshake_timeout_watchdog
-        WriteSession.__init__(self, remote, writer)
+    def __init__(self, remote, writer, _clock=None):
+        self.handshake_timeout_watchdog = None
+        WriteSession.__init__(self, remote, writer, _clock)
+
+    def startProtocol(self):
+        if self.handshake_timeout_watchdog is not None:
+            self.handshake_timeout_watchdog.start()
+        WriteSession.startProtocol(self)
 
     def nextBlock(self, datagram):
-        if self._handshake_timeout_watchdog.active():
-            self._handshake_timeout_watchdog.cancel()
+        if self.handshake_timeout_watchdog.active():
+            self.handshake_timeout_watchdog.cancel()
         WriteSession.nextBlock(self, datagram)
+
 
 
 class RemoteOriginWriteSession(WriteSession):
@@ -204,14 +210,21 @@ class ReadSession(DatagramProtocol):
 
 class LocalOriginReadSession(ReadSession):
 
-    def __init__(self, remote, reader, handshake_timeout_watchdog):
-        self._handshake_timeout_watchdog = handshake_timeout_watchdog
-        ReadSession.__init__(self, remote, reader)
+    def __init__(self, remote, reader, _clock=None):
+        self.handshake_timeout_watchdog = None
+        ReadSession.__init__(self, remote, reader, _clock)
+
+    def startProtocol(self):
+        if self.handshake_timeout_watchdog is not None:
+            self.handshake_timeout_watchdog.start()
+        ReadSession.startProtocol(self)
 
     def nextBlock(self):
-        if self._handshake_timeout_watchdog.active():
-            self._handshake_timeout_watchdog.cancel()
+        if (self.handshake_timeout_watchdog is not None and
+                self.handshake_timeout_watchdog.active()):
+            self.handshake_timeout_watchdog.cancel()
         ReadSession.nextBlock(self)
+
 
 class RemoteOriginReadSession(ReadSession):
 
