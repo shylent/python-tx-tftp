@@ -52,7 +52,7 @@ class WriteSession(DatagramProtocol):
         datagram = TFTPDatagramFactory(*split_opcode(datagram))
         log.msg("Datagram received from %s: %s" % (addr, datagram))
         if datagram.opcode == OP_DATA:
-            self.tftp_DATA(datagram)
+            return self.tftp_DATA(datagram)
         elif datagram.opcode == OP_ERROR:
             log.msg("Got error: " % datagram)
             self.cancel()
@@ -66,7 +66,7 @@ class WriteSession(DatagramProtocol):
                 self.transport.write(ERRORDatagram.from_code(
                     ERR_ILLEGAL_OP, "Transfer already finished").to_wire())
             else:
-                self.nextBlock(datagram)
+                return self.nextBlock(datagram)
         else:
             self.transport.write(ERRORDatagram.from_code(
                 ERR_ILLEGAL_OP, "Block number mismatch").to_wire())
@@ -80,7 +80,7 @@ class WriteSession(DatagramProtocol):
         return d
 
     def blockWriteFailure(self, failure):
-        log.err("Failed to write to the local file", failure)
+        log.err(failure)
         self.transport.write(ERRORDatagram.from_code(ERR_DISK_FULL).to_wire())
         self.cancel()
 
@@ -113,8 +113,7 @@ class LocalOriginWriteSession(WriteSession):
     def nextBlock(self, datagram):
         if self.handshake_timeout_watchdog.active():
             self.handshake_timeout_watchdog.cancel()
-        WriteSession.nextBlock(self, datagram)
-
+        return WriteSession.nextBlock(self, datagram)
 
 
 class RemoteOriginWriteSession(WriteSession):
@@ -157,7 +156,7 @@ class ReadSession(DatagramProtocol):
         datagram = TFTPDatagramFactory(*split_opcode(datagram))
         log.msg("Datagram received from %s: %s" % (addr, datagram))
         if datagram.opcode == OP_ACK:
-            self.tftp_ACK(datagram)
+            return self.tftp_ACK(datagram)
         elif datagram.opcode == OP_ERROR:
             log.msg("Got error: " % datagram)
             self.cancel()
@@ -172,7 +171,7 @@ class ReadSession(DatagramProtocol):
                 log.msg("Final ACK received, transfer successful")
                 self.cancel()
             else:
-                self.nextBlock()
+                return self.nextBlock()
         else:
             self.transport.write(ERRORDatagram.from_code(
                 ERR_ILLEGAL_OP, "Block number mismatch").to_wire())
@@ -180,8 +179,7 @@ class ReadSession(DatagramProtocol):
     def nextBlock(self):
         self.blocknum += 1
         d = maybeDeferred(self.reader.read, self.block_size)
-        d.addCallbacks(callback=self.dataFromReader,
-                       errback=self.readFailed)
+        d.addCallbacks(callback=self.dataFromReader, errback=self.readFailed)
         return d
 
     def dataFromReader(self, data):
@@ -223,11 +221,11 @@ class LocalOriginReadSession(ReadSession):
         if (self.handshake_timeout_watchdog is not None and
                 self.handshake_timeout_watchdog.active()):
             self.handshake_timeout_watchdog.cancel()
-        ReadSession.nextBlock(self)
+        return ReadSession.nextBlock(self)
 
 
 class RemoteOriginReadSession(ReadSession):
 
     def startProtocol(self):
         ReadSession.startProtocol(self)
-        self.nextBlock()
+        return self.nextBlock()
