@@ -2,7 +2,8 @@
 @author: shylent
 '''
 from tftp.datagram import (split_opcode, WireProtocolError, TFTPDatagramFactory,
-    RQDatagram, DATADatagram, ACKDatagram, ERRORDatagram, errors)
+    RQDatagram, DATADatagram, ACKDatagram, ERRORDatagram, errors, OP_RRQ, OP_WRQ)
+from tftp.errors import OptionsDecodeError
 from twisted.trial import unittest
 
 
@@ -11,7 +12,7 @@ class OpcodeProcessing(unittest.TestCase):
     def test_zero_length(self):
         self.assertRaises(WireProtocolError, split_opcode, '')
 
-    def test_truncated_opcode(self):
+    def test_incomplete_opcode(self):
         self.assertRaises(WireProtocolError, split_opcode, '0')
 
     def test_empty_payload(self):
@@ -30,12 +31,32 @@ class ConcreteDatagrams(unittest.TestCase):
     def test_rq(self):
         # Only one field - not ok
         self.assertRaises(WireProtocolError, RQDatagram.from_wire, 'foobar')
-        # Two fields - ok (even if unterminated, for future support of TFTP options)
-        self.failUnless(RQDatagram.from_wire('foo\x00bar'))
+        # Two fields - ok (unterminated, slight deviation from the spec)
+        dgram = RQDatagram.from_wire('foo\x00bar')
+        dgram.opcode = OP_RRQ
+        self.assertEqual(dgram.to_wire(), '\x00\x01foo\x00bar\x00')
         # Two fields terminated is ok too
-        self.failUnless(RQDatagram.from_wire('foo\x00bar\x00'))
-        # More than two fields is also ok
-        self.failUnless(RQDatagram.from_wire('foo\x00bar\x00baz'))
+        RQDatagram.from_wire('foo\x00bar\x00')
+        dgram.opcode = OP_RRQ
+        self.assertEqual(dgram.to_wire(), '\x00\x01foo\x00bar\x00')
+        # More than two fields is also ok (unterminated, slight deviation from the spec)
+        dgram = RQDatagram.from_wire('foo\x00bar\x00baz\x00spam')
+        self.assertEqual(dgram.options, {'baz':'spam'})
+        dgram.opcode = OP_WRQ
+        self.assertEqual(dgram.to_wire(), '\x00\x02foo\x00bar\x00baz\x00spam\x00')
+        # More than two fields is also ok (terminated)
+        dgram = RQDatagram.from_wire('foo\x00bar\x00baz\x00spam\x00one\x00two\x00')
+        self.assertEqual(dgram.options, {'baz':'spam', 'one':'two'})
+        dgram.opcode = OP_RRQ
+        self.assertEqual(dgram.to_wire(),
+            '\x00\x01foo\x00bar\x00baz\x00spam\x00one\x00two\x00')
+        # Option with no value - not ok
+        self.assertRaises(OptionsDecodeError,
+            RQDatagram.from_wire, 'foo\x00bar\x00baz\x00spam\x00one\x00')
+        # Duplicate option - not ok
+        self.assertRaises(OptionsDecodeError,
+            RQDatagram.from_wire,
+            'foo\x00bar\x00baz\x00spam\x00one\x00two\x00baz\x00val\x00')
 
     def test_rrq(self):
         self.assertEqual(TFTPDatagramFactory(*split_opcode('\x00\x01foo\x00bar')).to_wire(),

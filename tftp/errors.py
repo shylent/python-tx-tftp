@@ -18,6 +18,13 @@ class InvalidOpcodeError(WireProtocolError):
 class PayloadDecodeError(WireProtocolError):
     """Failed to parse the payload"""
 
+class OptionsDecodeError(PayloadDecodeError):
+    """Failed to parse options in the WRQ/RRQ datagram. It is distinct from
+    L{PayloadDecodeError} so that it can be caught and dealt with gracefully
+    (pretend we didn't see any options at all, perhaps).
+
+    """
+
 class InvalidErrorcodeError(PayloadDecodeError):
     """An ERROR datagram has an error code, that does not correspond to any known
     error code values.

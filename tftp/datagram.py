@@ -1,8 +1,10 @@
 '''
 @author: shylent
 '''
+from itertools import chain
 from tftp.errors import (WireProtocolError, InvalidOpcodeError, 
-    PayloadDecodeError, InvalidErrorcodeError)
+    PayloadDecodeError, InvalidErrorcodeError, OptionsDecodeError)
+from twisted.python.util import OrderedDict
 import struct
 
 OP_RRQ = 1
@@ -60,7 +62,7 @@ class TFTPDatagram(object):
     """
 
     opcode = None
-    
+
     @classmethod
     def from_wire(cls, payload):
         """Parse the payload and return a datagram object
@@ -90,8 +92,12 @@ class RQDatagram(TFTPDatagram):
     Case-insensitive.
     @type mode: C{str}
 
+    @ivar options: Any options, that were requested by the client (as per
+    U{RFC2374<http://tools.ietf.org/html/rfc2347>}
+    @type options: C{dict}
+
     """
-    
+
     @classmethod
     def from_wire(cls, payload):
         """Parse the payload and return a RRQ/WRQ datagram object.
@@ -99,27 +105,50 @@ class RQDatagram(TFTPDatagram):
         @return: datagram object
         @rtype: L{RRQDatagram} or L{WRQDatagram}
 
+        @raise OptionsDecodeError: if we failed to decode the options, requested
+        by the client
         @raise PayloadDecodeError: if there were not enough fields in the payload.
         Fields are terminated by NUL.
 
         """
         parts = payload.split('\x00')
         try:
-            return cls(parts[0], parts[1])
+            filename, mode = parts.pop(0), parts.pop(0)
         except IndexError:
             raise PayloadDecodeError("Not enough fields in the payload")
+        if parts and not parts[-1]:
+            parts.pop(-1)
+        options = OrderedDict()
+        # To maintain consistency during testing.
+        # The actual order of options is not important as per RFC2347
+        if len(parts) % 2:
+            raise OptionsDecodeError("No value for option %s" % parts[-1])
+        for ind, opt_name in enumerate(parts[::2]):
+            if opt_name in options:
+                raise OptionsDecodeError("Duplicate option specified: %s" % opt_name)
+            options[opt_name] = parts[ind * 2 + 1]
+        return cls(filename, mode, options)
 
-    def __init__(self, filename, mode):
+    def __init__(self, filename, mode, options):
         self.filename = filename
         self.mode = mode.lower()
-        
+        self.options = options
+
     def __repr__(self):
+        if self.options:
+            return ("<%s(filename=%s, mode=%s, options=%s)>" %
+                    (self.__class__.__name__, self.filename, self.mode, self.options))
         return "<%s(filename=%s, mode=%s)>" % (self.__class__.__name__,
                                                self.filename, self.mode)
-    
+
     def to_wire(self):
-        return ''.join((struct.pack("!H", self.opcode),
-                        self.filename, '\x00', self.mode, '\x00'))
+        opcode = struct.pack("!H", self.opcode)
+        if self.options:
+            options = '\x00'.join(chain.from_iterable(self.options.iteritems()))
+            return ''.join((opcode, self.filename, '\x00', self.mode, '\x00',
+                            options, '\x00'))
+        else:
+            return ''.join((opcode, self.filename, '\x00', self.mode, '\x00'))
 
 class RRQDatagram(RQDatagram):
     opcode = OP_RRQ
@@ -138,7 +167,7 @@ class DATADatagram(TFTPDatagram):
 
     """
     opcode = OP_DATA
-    
+
     @classmethod
     def from_wire(cls, payload):
         """Parse the payload and return a L{DATADatagram} object.
@@ -161,11 +190,11 @@ class DATADatagram(TFTPDatagram):
     def __init__(self, blocknum, data):
         self.blocknum = blocknum
         self.data = data
-    
+
     def __repr__(self):
         return "<%s(blocknum=%s, %s bytes of data)>" % (self.__class__.__name__,
                                                         self.blocknum, len(self.data))
-        
+
     def to_wire(self):
         return ''.join((struct.pack('!HH', self.opcode, self.blocknum), self.data))
 
@@ -177,7 +206,7 @@ class ACKDatagram(TFTPDatagram):
 
     """
     opcode = OP_ACK
-    
+
     @classmethod
     def from_wire(cls, payload):
         """Parse the payload and return a L{ACKDatagram} object.
@@ -196,13 +225,13 @@ class ACKDatagram(TFTPDatagram):
         except struct.error:
             raise PayloadDecodeError("Unable to extract the block number")
         return cls(blocknum)
-    
+
     def __init__(self, blocknum):
         self.blocknum = blocknum
-    
+
     def __repr__(self):
         return "<%s(blocknum=%s)>" % (self.__class__.__name__, self.blocknum)
-    
+
     def to_wire(self):
         return struct.pack('!HH', self.opcode, self.blocknum)
 
@@ -218,7 +247,7 @@ class ERRORDatagram(TFTPDatagram):
 
     """
     opcode = OP_ERROR
-    
+
     @classmethod
     def from_wire(cls, payload):
         """Parse the payload and return a L{ERRORDatagram} object.
@@ -248,7 +277,7 @@ class ERRORDatagram(TFTPDatagram):
         if not errmsg:
             errmsg = errors[errorcode]
         return cls(errorcode, errmsg)
-    
+
     @classmethod
     def from_code(cls, errorcode, errmsg=None):
         """Create an L{ERRORDatagram}, given an error code and, optionally, an
@@ -272,12 +301,12 @@ class ERRORDatagram(TFTPDatagram):
         if errmsg is None:
             errmsg = errors[errorcode]
         return cls(errorcode, errmsg)
-        
-        
+
+
     def __init__(self, errorcode, errmsg):
         self.errorcode = errorcode
         self.errmsg = errmsg
-        
+
     def to_wire(self):
         return ''.join((struct.pack('!HH', self.opcode, self.errorcode),
                         self.errmsg, '\x00'))
@@ -312,7 +341,7 @@ class _TFTPDatagramFactory(object):
         try:
             datagram_class = self._dgram_classes[opcode]
         except KeyError:
-            raise InvalidOpcodeError(opcode) 
+            raise InvalidOpcodeError(opcode)
         return datagram_class.from_wire(payload)
 
 TFTPDatagramFactory = _TFTPDatagramFactory()
