@@ -11,12 +11,11 @@ A Twisted-based TFTP implementation
  a problem.
  - netascii transfer mode.
  - An actual TFTP server.
- - Fully-tested internals (wire protocol, conversions, backend).
+ - Tests for everything, besides the "outermost" dispatcher protocol
+ - Docstrings
 
 ##Plans
- - <del>Docstrings</del>More docstrings.
- - Tests for the actual protocol.
- - I will factor out the functionality, that is common to the client and the server
- and add a convenient interface for sending/receiving files.
+ - Even more docstrings
+ - A convenient interface for sending/receiving files, turn it into a twistd plugin.
  - Support for option negotiation.
  - Multicast.
