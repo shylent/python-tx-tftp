@@ -3,12 +3,12 @@
 '''
 from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN,
     TFTPDatagramFactory, split_opcode, OP_DATA, OP_ERROR, ERR_ILLEGAL_OP,
-    ERR_DISK_FULL, OP_ACK, DATADatagram, ERR_NOT_DEFINED)
+    ERR_DISK_FULL, OP_ACK, DATADatagram, ERR_NOT_DEFINED, OP_OACK)
+from tftp.util import SequentialCall
 from twisted.internet import reactor
 from twisted.internet.defer import maybeDeferred
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
-from tftp.util import SequentialCall
 
 
 class WriteSession(DatagramProtocol):
@@ -34,6 +34,8 @@ class WriteSession(DatagramProtocol):
         self.remote = remote
         self.blocknum = 0
         self.completed = False
+        self.started = False
+        self.active = False
         self.timeout_watchdog = None
         if _clock is None:
             self._clock = reactor
@@ -54,8 +56,8 @@ class WriteSession(DatagramProtocol):
         """Enter "connected" mode and start the timeout watchdog"""
         addr = self.transport.getHost()
         log.msg("Write session started on %s, remote: %s" % (addr, self.remote))
-        self.transport.connect(*self.remote)
         self._resetWatchdog(self.timeout)
+        self.started = True
 
     def connectionRefused(self):
         if not self.completed:
@@ -63,10 +65,6 @@ class WriteSession(DatagramProtocol):
         self.transport.stopListening()
 
     def datagramReceived(self, datagram, addr):
-        if self.remote[1] != addr[1]:
-            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
-            return # Does not belong to this transfer
-        datagram = TFTPDatagramFactory(*split_opcode(datagram))
         log.msg("Datagram received from %s: %s" % (addr, datagram))
         if datagram.opcode == OP_DATA:
             return self.tftp_DATA(datagram)
@@ -99,6 +97,7 @@ class WriteSession(DatagramProtocol):
         @type datagram: L{DATADatagram}
 
         """
+        self.active = True
         self._resetWatchdog(self.timeout)
         self.blocknum += 1
         d = maybeDeferred(self.writer.write, datagram.data)
@@ -146,7 +145,7 @@ class WriteSession(DatagramProtocol):
             self.timeout_watchdog = self._clock.callLater(timeout, self.timedOut)
 
 
-class LocalOriginWriteSession(WriteSession):
+class LocalOriginWriteSession(DatagramProtocol):
     """Bootstraps a L{WriteSession}, that was initiated locally, - we've requested
     a read from a remote server
 
@@ -155,27 +154,72 @@ class LocalOriginWriteSession(WriteSession):
     before this protocol's L{startProtocol} is called
 
     """
-    def __init__(self, remote, writer, _clock=None):
+    def __init__(self, remote, writer, options=None, _clock=None):
+        self.options = options
+        self.remote = remote
         self.handshake_timeout_watchdog = None
-        WriteSession.__init__(self, remote, writer, _clock)
+        self.session = WriteSession(remote, writer, _clock)
+        if _clock is not None:
+            self._clock = _clock
+        else:
+            self._clock = reactor
 
     def startProtocol(self):
         """Start the L{handshake_timeout_watchdog} and hand over control to the
         actual L{WriteSession} protocol.
 
         """
+        self.transport.connect(*self.remote)
         if self.handshake_timeout_watchdog is not None:
             self.handshake_timeout_watchdog.start()
-        WriteSession.startProtocol(self)
+        if self.options is None:
+            self.session.transport = self.transport
+            self.session.startProtocol()
 
-    def nextBlock(self, datagram):
-        """Initial DATA datagram has been received and the transfer is considered
-        to have started successfully. Cancel the L{handshake_timeout_watchdog}
+    def processOptions(self, options):
+        return options
 
-        """
-        if self.handshake_timeout_watchdog.active():
+    def tftp_OACK(self, datagram):
+        if not self.session.started:
+            options = self.processOptions(datagram.options)
+            if self.handshake_timeout_watchdog.active():
+                self.handshake_timeout_watchdog.cancel()
+            self.session.transport = self.transport
+            self._clock.callLater(0, self.transport.write, ACKDatagram(0))
+            return self.session.startProtocol(self)
+        else:
+            log.msg("Duplicate OACK received, send back ACK and ignore")
+            self.transport.write(ACKDatagram(0))
+
+    def _check_active(self, res):
+        if self.session.active:
             self.handshake_timeout_watchdog.cancel()
-        return WriteSession.nextBlock(self, datagram)
+        return res
+
+    def datagramReceived(self, datagram, addr):
+        if self.remote[1] != addr[1]:
+            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
+            return # Does not belong to this transfer
+        datagram = TFTPDatagramFactory(*split_opcode(datagram))
+        log.msg("Datagram received from %s: %s" % (addr, datagram))
+        if datagram.opcode == OP_OACK:
+            return self.tftp_OACK(datagram)
+        elif datagram.opcode == OP_ERROR:
+            log.msg("Got error: " % datagram)
+            return self.cancel()
+        elif self.session.started:
+            if self.handshake_timeout_watchdog.active() and not self.session.active:
+                d = maybeDeferred(self.session.datagramReceived, datagram, addr)
+                d.addCallback(self._check_active)
+                return d
+            else:
+                return self.session.datagramReceived(datagram, addr)
+
+    def cancel(self):
+        if self.session.started:
+            return self.session.cancel()
+        else:
+            self.transport.stopListening()
 
 
 class RemoteOriginWriteSession(WriteSession):
