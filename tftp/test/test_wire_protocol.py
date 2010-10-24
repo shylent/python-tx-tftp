@@ -2,7 +2,8 @@
 @author: shylent
 '''
 from tftp.datagram import (split_opcode, WireProtocolError, TFTPDatagramFactory,
-    RQDatagram, DATADatagram, ACKDatagram, ERRORDatagram, errors, OP_RRQ, OP_WRQ)
+    RQDatagram, DATADatagram, ACKDatagram, ERRORDatagram, errors, OP_RRQ, OP_WRQ,
+    OACKDatagram)
 from tftp.errors import OptionsDecodeError
 from twisted.trial import unittest
 
@@ -65,6 +66,26 @@ class ConcreteDatagrams(unittest.TestCase):
     def test_wrq(self):
         self.assertEqual(TFTPDatagramFactory(*split_opcode('\x00\x02foo\x00bar')).to_wire(),
                          '\x00\x02foo\x00bar\x00')
+
+    def test_oack(self):
+        # Zero options (I don't know if it is ok, the standard doesn't say anything)
+        dgram = OACKDatagram.from_wire('')
+        self.assertEqual(dgram.to_wire(), '\x00\x06')
+        # One option, terminated
+        dgram = OACKDatagram.from_wire('foo\x00bar\x00')
+        self.assertEqual(dgram.options, {'foo':'bar'})
+        self.assertEqual(dgram.to_wire(), '\x00\x06foo\x00bar\x00')
+        # Not terminated
+        dgram = OACKDatagram.from_wire('foo\x00bar\x00baz\x00spam')
+        self.assertEqual(dgram.options, {'foo':'bar', 'baz':'spam'})
+        self.assertEqual(dgram.to_wire(), '\x00\x06foo\x00bar\x00baz\x00spam\x00')
+        # Option with no value
+        self.assertRaises(OptionsDecodeError, OACKDatagram.from_wire,
+            'foo\x00bar\x00baz')
+        # Duplicate option
+        self.assertRaises(OptionsDecodeError,
+            OACKDatagram.from_wire,
+            'baz\x00spam\x00one\x00two\x00baz\x00val\x00')
 
     def test_data(self):
         # Zero-length payload

@@ -2,7 +2,7 @@
 @author: shylent
 '''
 from itertools import chain
-from tftp.errors import (WireProtocolError, InvalidOpcodeError, 
+from tftp.errors import (WireProtocolError, InvalidOpcodeError,
     PayloadDecodeError, InvalidErrorcodeError, OptionsDecodeError)
 from twisted.python.util import OrderedDict
 import struct
@@ -12,6 +12,7 @@ OP_WRQ = 2
 OP_DATA = 3
 OP_ACK = 4
 OP_ERROR = 5
+OP_OACK = 6
 
 ERR_NOT_DEFINED = 0
 ERR_FILE_NOT_FOUND = 1
@@ -155,6 +156,53 @@ class RRQDatagram(RQDatagram):
 
 class WRQDatagram(RQDatagram):
     opcode = OP_WRQ
+
+class OACKDatagram(TFTPDatagram):
+    """An OACK datagram
+
+    @ivar options: Any options, that were requested by the client (as per
+    U{RFC2374<http://tools.ietf.org/html/rfc2347>}
+    @type options: C{dict}
+
+    """
+    opcode = OP_OACK
+
+    @classmethod
+    def from_wire(cls, payload):
+        """Parse the payload and return an OACK datagram object.
+
+        @return: datagram object
+        @rtype: L{OACKDatagram}
+
+        @raise OptionsDecodeError: if we failed to decode the options
+
+        """
+        parts = payload.split('\x00')
+        #FIXME: Boo, code duplication
+        if parts and not parts[-1]:
+            parts.pop(-1)
+        options = OrderedDict()
+        if len(parts) % 2:
+            raise OptionsDecodeError("No value for option %s" % parts[-1])
+        for ind, opt_name in enumerate(parts[::2]):
+            if opt_name in options:
+                raise OptionsDecodeError("Duplicate option specified: %s" % opt_name)
+            options[opt_name] = parts[ind * 2 + 1]
+        return cls(options)
+
+    def __init__(self, options):
+        self.options = options
+
+    def __repr__(self):
+        return ("<%s(options=%s)>" % (self.__class__.__name__, self.options))
+
+    def to_wire(self):
+        opcode = struct.pack("!H", self.opcode)
+        if self.options:
+            options = '\x00'.join(chain.from_iterable(self.options.iteritems()))
+            return ''.join((opcode, options, '\x00'))
+        else:
+            return opcode
 
 class DATADatagram(TFTPDatagram):
     """A DATA datagram
@@ -315,10 +363,11 @@ class _TFTPDatagramFactory(object):
     """Encapsulates the creation of datagrams based on the opcode"""
     _dgram_classes = {
         OP_RRQ: RRQDatagram,
-        OP_WRQ : WRQDatagram,
-        OP_DATA : DATADatagram,
-        OP_ACK : ACKDatagram,
-        OP_ERROR : ERRORDatagram
+        OP_WRQ: WRQDatagram,
+        OP_DATA: DATADatagram,
+        OP_ACK: ACKDatagram,
+        OP_ERROR: ERRORDatagram,
+        OP_OACK: OACKDatagram
     }
 
     def __call__(self, opcode, payload):
