@@ -1,13 +1,13 @@
 '''
 @author: shylent
 '''
+from tftp.bootstrap import RemoteOriginWriteSession, RemoteOriginReadSession
 from tftp.datagram import (TFTPDatagramFactory, split_opcode, OP_WRQ,
     ERRORDatagram, ERR_NOT_DEFINED, ERR_ACCESS_VIOLATION, ERR_FILE_EXISTS,
     ERR_ILLEGAL_OP, OP_RRQ, ERR_FILE_NOT_FOUND)
 from tftp.errors import (FileExists, Unsupported, AccessViolation, BackendError,
     FileNotFound)
 from tftp.netascii import NetasciiReceiverProxy
-from tftp.session import RemoteOriginWriteSession, RemoteOriginReadSession
 from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
