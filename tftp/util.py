@@ -105,8 +105,8 @@ class SequentialCall(object):
     def cancel(self):
         """Cancel the next scheduled call
 
-        @raise L{Cancelled}: if this SequentialCall has already been cancelled
-        @raise L{Spent}: if this SequentialCall has expired
+        @raise Cancelled: if this SequentialCall has already been cancelled
+        @raise Spent: if this SequentialCall has expired
 
         """
         if self._cancelled:

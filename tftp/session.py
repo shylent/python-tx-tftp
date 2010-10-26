@@ -22,8 +22,13 @@ class WriteSession(DatagramProtocol):
     transfer. Default: 512 (as per U{RFC1350<http://tools.ietf.org/html/rfc1350>})
     @type block_size: C{int}.
 
-    @cvar timeout: a number of seconds to wait for the next data chunk. Default: 10
-    @type timeout: C{int}
+    @cvar timeout: An iterable, that yields timeout values for every subsequent
+    ACKDatagram, that we've sent, that is not followed by the next data chunk.
+    When (if) the iterable is exhausted, the transfer is considered failed.
+    @type timeout: any iterable
+
+    @ivar started: whether or not this protocol has started
+    @type started: C{bool}
 
     """
 
@@ -52,7 +57,6 @@ class WriteSession(DatagramProtocol):
         self.transport.stopListening()
 
     def startProtocol(self):
-        """Start the timeout watchdog"""
         self.started = True
 
     def connectionRefused(self):
@@ -140,6 +144,12 @@ class WriteSession(DatagramProtocol):
         self.transport.stopListening()
 
     def sendData(self, bytes):
+        """Send data to the remote peer
+
+        @param bytes: bytes to send
+        @type bytes: C{str}
+
+        """
         self.transport.write(bytes)
 
 
@@ -158,6 +168,9 @@ class ReadSession(DatagramProtocol):
     unacknowledged DATADatagram, that we've sent. When (if) the iterable is exhausted,
     the transfer is considered failed.
     @type timeout: any iterable
+
+    @ivar started: whether or not this protocol has started
+    @type started: C{bool}
 
     """
     block_size = 512
@@ -185,7 +198,6 @@ class ReadSession(DatagramProtocol):
         self.transport.stopListening()
 
     def startProtocol(self):
-        """Enter "connected" mode"""
         self.started = True
 
     def connectionRefused(self):
@@ -255,4 +267,10 @@ class ReadSession(DatagramProtocol):
         self.cancel()
 
     def sendData(self, bytes):
+        """Send data to the remote peer
+
+        @param bytes: bytes to send
+        @type bytes: C{str}
+
+        """
         self.transport.write(bytes)
