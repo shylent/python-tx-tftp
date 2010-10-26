@@ -91,11 +91,10 @@ class SequentialCall(object):
         if not self._ran_first:
             self._wd = self._clock.callLater(0, self._call_and_schedule)
             return
+        if self._cancelled:
+            raise Cancelled("This SequentialCall has already been cancelled")
         if self._spent:
-            if self._cancelled:
-                raise Cancelled("This SequentialCall has already been cancelled")
             raise Spent("This SequentialCall has already timed out")
-
         try:
             next_timeout = self._timeout.next()
             self._wd = self._clock.callLater(next_timeout, self._call_and_schedule)
@@ -104,7 +103,20 @@ class SequentialCall(object):
             self._spent = True
 
     def cancel(self):
-        """Cancel the next scheduled call"""
+        """Cancel the next scheduled call
+
+        @raise L{Cancelled}: if this SequentialCall has already been cancelled
+        @raise L{Spent}: if this SequentialCall has expired
+
+        """
+        if self._cancelled:
+            raise Cancelled("This SequentialCall has already been cancelled")
+        if self._spent:
+            raise Spent("This SequentialCall has already timed out")
         if self._wd is not None and self._wd.active():
             self._wd.cancel()
         self._spent = self._cancelled = True
+
+    def active(self):
+        """Whether or not this L{SequentialCall} object is considered active"""
+        return not (self._spent or self._cancelled)
