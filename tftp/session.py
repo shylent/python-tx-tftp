@@ -1,7 +1,7 @@
 '''
 @author: shylent
 '''
-from tftp.datagram import (ACKDatagram, ERRORDatagram,OP_DATA, OP_ERROR, ERR_ILLEGAL_OP,
+from tftp.datagram import (ACKDatagram, ERRORDatagram, OP_DATA, OP_ERROR, ERR_ILLEGAL_OP,
     ERR_DISK_FULL, OP_ACK, DATADatagram, ERR_NOT_DEFINED,)
 from tftp.util import SequentialCall
 from twisted.internet import reactor
@@ -28,7 +28,7 @@ class WriteSession(DatagramProtocol):
     """
 
     block_size = 512
-    timeout = (3, 3, 3)
+    timeout = (1, 3, 7)
 
     def __init__(self, writer, _clock=None):
         self.writer = writer
@@ -46,7 +46,7 @@ class WriteSession(DatagramProtocol):
         and give up the connector.
 
         """
-        if self.timeout_watchdog is not None:
+        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
             self.timeout_watchdog.cancel()
         self.writer.cancel()
         self.transport.stopListening()
@@ -92,7 +92,7 @@ class WriteSession(DatagramProtocol):
         @type datagram: L{DATADatagram}
 
         """
-        if self.timeout_watchdog is not None:
+        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
             self.timeout_watchdog.cancel()
         self.blocknum += 1
         d = maybeDeferred(self.writer.write, datagram.data)
@@ -112,7 +112,7 @@ class WriteSession(DatagramProtocol):
         """
         bytes = ACKDatagram(datagram.blocknum).to_wire()
         self.timeout_watchdog = SequentialCall.run(self.timeout[:-1],
-            callable=self.transport.write, callable_args=[bytes, ],
+            callable=self.sendData, callable_args=[bytes, ],
             on_timeout=lambda: self._clock.callLater(self.timeout[-1], self.timedOut),
             run_now=True,
             _clock=self._clock
@@ -139,6 +139,9 @@ class WriteSession(DatagramProtocol):
             log.msg("Timed out after a successful transfer")
         self.transport.stopListening()
 
+    def sendData(self, bytes):
+        self.transport.write(bytes)
+
 
 class ReadSession(DatagramProtocol):
     """Represents a transfer, during which we read from a local file
@@ -158,7 +161,7 @@ class ReadSession(DatagramProtocol):
 
     """
     block_size = 512
-    timeout = (3, 5, 10)
+    timeout = (1, 3, 7)
 
     def __init__(self, reader, _clock=None):
         self.reader = reader
@@ -177,7 +180,7 @@ class ReadSession(DatagramProtocol):
 
         """
         self.reader.finish()
-        if self.timeout_watchdog is not None:
+        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
             self.timeout_watchdog.cancel()
         self.transport.stopListening()
 
@@ -204,7 +207,7 @@ class ReadSession(DatagramProtocol):
         if datagram.blocknum < self.blocknum:
             log.msg("Duplicate ACK for blocknum %s" % datagram.blocknum)
         elif datagram.blocknum == self.blocknum:
-            if self.timeout_watchdog is not None:
+            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
                 self.timeout_watchdog.cancel()
             if self.completed:
                 log.msg("Final ACK received, transfer successful")

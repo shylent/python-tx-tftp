@@ -15,6 +15,8 @@ from zope import interface
 import shutil
 import tempfile
 
+ReadSession.timeout = (2, 2, 2)
+WriteSession.timeout = (2, 2, 2)
 
 class DelayedReader(FilesystemReader):
 
@@ -90,13 +92,14 @@ class WriteSessions(unittest.TestCase):
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = WriteSession(self.writer, _clock=self.clock)
+        self.ws.timeout = (4, 4, 4)
         self.ws.transport = self.transport
         self.ws.startProtocol()
 
-    @inlineCallbacks
     def test_ERROR(self):
         err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, 'no reason')
-        yield self.ws.datagramReceived(err_dgram)
+        self.ws.datagramReceived(err_dgram)
+        self.clock.advance(0.1)
         self.failIf(self.transport.value())
         self.failUnless(self.transport.disconnecting)
 
@@ -131,11 +134,25 @@ class WriteSessions(unittest.TestCase):
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.advance(0.1)
-            self.writer.finish()
-            self.assertEqual(self.target.open('r').read(), 'foobar')
+            #self.writer.finish()
+            #self.assertEqual(self.target.open('r').read(), 'foobar')
             self.failIf(self.transport.disconnecting)
             ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-            self.failUnless(isinstance(ack_dgram, ACKDatagram))
+            self.assertEqual(ack_dgram.blocknum, 1)
+            self.failIf(self.ws.completed,
+                        "Data length is equal to blocksize, no reason to stop")
+            data_datagram = DATADatagram(2, 'barbaz')
+
+            self.transport.clear()
+            d = self.ws.datagramReceived(data_datagram)
+            d.addCallback(cb_)
+            self.clock.advance(3)
+            return d
+        def cb_(ign):
+            self.clock.advance(0.1)
+            self.failIf(self.transport.disconnecting)
+            ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
+            self.assertEqual(ack_dgram.blocknum, 2)
             self.failIf(self.ws.completed,
                         "Data length is equal to blocksize, no reason to stop")
         d.addCallback(cb)
@@ -166,11 +183,40 @@ class WriteSessions(unittest.TestCase):
             self.failUnless(isinstance(err_dgram, ERRORDatagram))
 
             # Check for proper disconnection after grace timeout expires
-            self.clock.pump((3,)*4)
+            self.clock.pump((4,)*4)
             self.failUnless(self.transport.disconnecting,
                 "We are done and the grace timeout is over, should disconnect")
         d.addCallback(cb)
         self.clock.advance(2)
+        return d
+
+    def test_DATA_backoff(self):
+        self.ws.block_size = 5
+
+        data_datagram = DATADatagram(1, 'foobar')
+        d = self.ws.datagramReceived(data_datagram)
+        def cb(ign):
+            self.clock.advance(0.1)
+            ack_datagram = ACKDatagram(1)
+
+            self.clock.pump((1,)*5)
+            # Sent two times - initial send and a retransmit after first timeout
+            self.assertEqual(self.transport.value(),
+                             ack_datagram.to_wire()*2)
+
+            # Sent three times - initial send and two retransmits
+            self.clock.pump((1,)*4)
+            self.assertEqual(self.transport.value(),
+                             ack_datagram.to_wire()*3)
+
+            # Sent still three times - initial send, two retransmits and the last wait
+            self.clock.pump((1,)*4)
+            self.assertEqual(self.transport.value(),
+                             ack_datagram.to_wire()*3)
+
+            self.failUnless(self.transport.disconnecting)
+        d.addCallback(cb)
+        self.clock.advance(2.1)
         return d
 
     @inlineCallbacks
@@ -189,7 +235,7 @@ class WriteSessions(unittest.TestCase):
         data_datagram = DATADatagram(1, 'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
-            self.clock.pump((1,)*10)
+            self.clock.pump((1,)*13)
             self.failUnless(self.transport.disconnecting)
         d.addCallback(cb)
         self.clock.advance(4)

@@ -1,19 +1,25 @@
 '''
 @author: shylent
 '''
-from tftp.bootstrap import (LocalOriginWriteSession, LocalOriginReadSession, 
-    RemoteOriginReadSession, RemoteOriginWriteSession)
-from tftp.datagram import (ACKDatagram, TFTPDatagramFactory, split_opcode, 
-    ERR_TID_UNKNOWN, DATADatagram)
+from tftp.bootstrap import (LocalOriginWriteSession, LocalOriginReadSession,
+    RemoteOriginReadSession, RemoteOriginWriteSession, TFTPBootstrap)
+from tftp.datagram import (ACKDatagram, TFTPDatagramFactory, split_opcode,
+    ERR_TID_UNKNOWN, DATADatagram, OACKDatagram)
 from tftp.test.test_sessions import DelayedWriter, FakeTransport, DelayedReader
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import Clock
 from twisted.python.filepath import FilePath
+from twisted.python.util import OrderedDict
 from twisted.trial import unittest
 import shutil
 import tempfile
+from tftp.session import MAX_BLOCK_SIZE, WriteSession, ReadSession
 
+ReadSession.timeout = (2, 2, 2)
+WriteSession.timeout = (2, 2, 2)
+RemoteOriginReadSession.timeout = (2, 2, 2)
+RemoteOriginWriteSession.timeout = (2, 2, 2)
 
 class MockHandshakeWatchdog(object):
 
@@ -38,6 +44,120 @@ class MockHandshakeWatchdog(object):
     def active(self):
         return self.wd.active()
 
+class MockSession(object):
+    block_size = 512
+    timeout = (1, 3, 5)
+
+# Testing implementation here, but if I don't, I'll have a TON of duplicate code
+class TestOptionProcessing(unittest.TestCase):
+
+    def setUp(self):
+        self.proto = TFTPBootstrap(('127.0.0.1', 1111), None)
+
+    def test_empty_options(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict())
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.block_size, 512)
+        self.assertEqual(self.s.timeout, (1, 3, 5))
+
+    def test_blksize(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'blksize':'8'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.block_size, 8)
+        self.assertEqual(opts, OrderedDict({'blksize':'8'}))
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'blksize':'foo'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.block_size, 512)
+        self.assertEqual(opts, OrderedDict())
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'blksize':'65464'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.block_size, MAX_BLOCK_SIZE)
+        self.assertEqual(opts, OrderedDict({'blksize':str(MAX_BLOCK_SIZE)}))
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'blksize':'65465'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.block_size, 512)
+        self.assertEqual(opts, OrderedDict())
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'blksize':'7'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.block_size, 512)
+        self.assertEqual(opts, OrderedDict())
+
+    def test_timeout(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'timeout':'1'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (1, 1, 1))
+        self.assertEqual(opts, OrderedDict({'timeout':'1'}))
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'timeout':'foo'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (1, 3, 5))
+        self.assertEqual(opts, OrderedDict())
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'timeout':'0'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (1, 3, 5))
+        self.assertEqual(opts, OrderedDict())
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'timeout':'255'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (255, 255, 255))
+        self.assertEqual(opts, OrderedDict({'timeout':'255'}))
+
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'timeout':'256'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (1, 3, 5))
+        self.assertEqual(opts, OrderedDict())
+
+    def test_multiple_options(self):
+        got_options = OrderedDict()
+        got_options['timeout'] = '123'
+        got_options['blksize'] = '1024'
+        self.s = MockSession()
+        opts = self.proto.processOptions(got_options)
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (123, 123, 123))
+        self.assertEqual(self.s.block_size, 1024)
+        self.assertEqual(opts.items(), got_options.items())
+
+        got_options = OrderedDict()
+        got_options['blksize'] = '1024'
+        got_options['timeout'] = '123'
+        self.s = MockSession()
+        opts = self.proto.processOptions(got_options)
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (123, 123, 123))
+        self.assertEqual(self.s.block_size, 1024)
+        self.assertEqual(opts.items(), got_options.items())
+
+        got_options = OrderedDict()
+        got_options['blksize'] = '1024'
+        got_options['foobar'] = 'barbaz'
+        got_options['timeout'] = '123'
+        self.s = MockSession()
+        opts = self.proto.processOptions(got_options)
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.timeout, (123, 123, 123))
+        self.assertEqual(self.s.block_size, 1024)
+        actual_options = OrderedDict()
+        actual_options['blksize'] = '1024'
+        actual_options['timeout'] = '123'
+        self.assertEqual(opts.items(), actual_options.items())
+
 
 class BootstrapLocalOriginWrite(unittest.TestCase):
 
@@ -50,14 +170,15 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
-        self.wd = MockHandshakeWatchdog(4, self.ws.cancel, _clock=self.clock)
-        self.ws.handshake_timeout_watchdog = self.wd
+        self.wd = MockHandshakeWatchdog(4, self.ws.timedOut, _clock=self.clock)
+        self.ws.timeout_watchdog = self.wd
         self.ws.transport = self.transport
 
-    @inlineCallbacks
     def test_invalid_tid(self):
+        self.ws.startProtocol()
         bad_tid_dgram = ACKDatagram(123)
-        yield self.ws.datagramReceived(bad_tid_dgram.to_wire(), ('127.0.0.1', 1111))
+        self.ws.datagramReceived(bad_tid_dgram.to_wire(), ('127.0.0.1', 1111))
+
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(err_dgram.errorcode, ERR_TID_UNKNOWN)
         self.addCleanup(self.ws.cancel)
@@ -70,19 +191,181 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.failUnless(self.transport.disconnecting)
 
     def test_local_origin_write_session_handshake_success(self):
+        self.ws.session.block_size = 6
         self.ws.startProtocol()
         self.clock.advance(1)
         data_datagram = DATADatagram(1, 'foobar')
-        d = self.ws.datagramReceived(data_datagram.to_wire(), ('127.0.0.1', 65465))
-        def cb(ign):
-            self.clock.advance(0.1)
-            self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
-            self.failIf(self.transport.disconnecting)
-            self.failIf(self.wd.active())
-        self.clock.advance(2)
-        d.addCallback(cb)
+        self.ws.datagramReceived(data_datagram.to_wire(), ('127.0.0.1', 65465))
+        self.clock.pump((1,)*3)
+        self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
+        self.failIf(self.transport.disconnecting)
+        self.failIf(self.wd.active())
         self.addCleanup(self.ws.cancel)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir_path)
+
+class LocalOriginWriteOptionNegotiation(unittest.TestCase):
+
+    port = 65466
+
+    def setUp(self):
+        self.clock = Clock()
+        self.tmp_dir_path = tempfile.mkdtemp()
+        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
+        self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer,
+                                          options={'blksize':'123'}, _clock=self.clock)
+        self.wd = MockHandshakeWatchdog(4, self.ws.timedOut, _clock=self.clock)
+        self.ws.timeout_watchdog = self.wd
+        self.ws.transport = self.transport
+
+
+    def test_option_normal(self):
+        self.ws.startProtocol()
+        self.ws.datagramReceived(OACKDatagram({'blksize':'12'}).to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
+        self.assertEqual(self.ws.session.block_size, WriteSession.block_size)
+        self.assertEqual(self.transport.value(), ACKDatagram(0).to_wire())
+
+        self.transport.clear()
+        self.ws.datagramReceived(OACKDatagram({'blksize':'9'}).to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
+        self.assertEqual(self.ws.session.block_size, WriteSession.block_size)
+        self.assertEqual(self.transport.value(), ACKDatagram(0).to_wire())
+
+        self.transport.clear()
+        self.ws.datagramReceived(DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(3)
+        self.failUnless(self.ws.session.started)
+        self.clock.advance(0.1)
+        self.assertEqual(self.ws.session.block_size, 9)
+        self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
+
+        self.transport.clear()
+        self.ws.datagramReceived(DATADatagram(2, 'asdfghjkl').to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(3)
+        self.assertEqual(self.transport.value(), ACKDatagram(2).to_wire())
+        self.writer.finish()
+        self.assertEqual(self.writer.file_path.open('r').read(), 'foobarbazasdfghjkl')
+
+        self.transport.clear()
+        self.ws.datagramReceived(OACKDatagram({'blksize':'12'}).to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
+        self.assertEqual(self.ws.session.block_size, 9)
+        self.assertEqual(self.transport.value(), ACKDatagram(0).to_wire())
+
+    def test_option_timeout(self):
+        self.ws.startProtocol()
+        self.clock.advance(5)
+        self.failUnless(self.transport.disconnecting)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir_path)
+
+class BootstrapRemoteOriginWrite(unittest.TestCase):
+
+    port = 65466
+
+    def setUp(self):
+        self.clock = Clock()
+        self.tmp_dir_path = tempfile.mkdtemp()
+        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
+        self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
+        self.ws.transport = self.transport
+        self.ws.startProtocol()
+
+    @inlineCallbacks
+    def test_invalid_tid(self):
+        bad_tid_dgram = ACKDatagram(123)
+        yield self.ws.datagramReceived(bad_tid_dgram.to_wire(), ('127.0.0.1', 1111))
+        err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
+        self.assertEqual(err_dgram.errorcode, ERR_TID_UNKNOWN)
+        self.addCleanup(self.ws.cancel)
+
+    def test_remote_origin_write_bootstrap(self):
+        # Initial ACK
+        ack_datagram_0 = ACKDatagram(0)
+        self.clock.advance(0.1)
+        self.assertEqual(self.transport.value(), ack_datagram_0.to_wire())
+        self.failIf(self.transport.disconnecting)
+
+        # Normal exchange
+        self.transport.clear()
+        d = self.ws.datagramReceived(DATADatagram(1, 'foobar').to_wire(), ('127.0.0.1', 65465))
+        def cb(res):
+            self.clock.advance(0.1)
+            ack_datagram_1 = ACKDatagram(1)
+            self.assertEqual(self.transport.value(), ack_datagram_1.to_wire())
+            self.assertEqual(self.target.open('r').read(), 'foobar')
+            self.failIf(self.transport.disconnecting)
+            self.addCleanup(self.ws.cancel)
+        d.addCallback(cb)
+        self.clock.advance(3)
         return d
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir_path)
+
+
+class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
+
+    port = 65466
+
+    def setUp(self):
+        self.clock = Clock()
+        self.tmp_dir_path = tempfile.mkdtemp()
+        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
+        self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer,
+                                           options={'blksize':'9'}, _clock=self.clock)
+        self.ws.transport = self.transport
+
+    def test_option_normal(self):
+        self.ws.startProtocol()
+        self.clock.advance(0.1)
+        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
+        self.clock.advance(3)
+        self.assertEqual(self.transport.value(), oack_datagram * 2)
+
+        self.transport.clear()
+        self.ws.datagramReceived(DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+        self.clock.pump((1,)*3)
+        self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
+        self.assertEqual(self.ws.session.block_size, 9)
+
+        self.transport.clear()
+        self.ws.datagramReceived(DATADatagram(2, 'smthng').to_wire(), ('127.0.0.1', 65465))
+        self.clock.pump((1,)*3)
+        self.assertEqual(self.transport.value(), ACKDatagram(2).to_wire())
+        self.clock.pump((1,)*10)
+        self.writer.finish()
+        self.assertEqual(self.writer.file_path.open('r').read(), 'foobarbazsmthng')
+        self.failUnless(self.transport.disconnecting)
+
+    def test_option_timeout(self):
+        self.ws.startProtocol()
+        self.clock.advance(0.1)
+        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
+        self.failIf(self.transport.disconnecting)
+
+        self.clock.advance(3)
+        self.assertEqual(self.transport.value(), oack_datagram * 2)
+        self.failIf(self.transport.disconnecting)
+
+        self.clock.advance(2)
+        self.assertEqual(self.transport.value(), oack_datagram * 3)
+        self.failIf(self.transport.disconnecting)
+
+        self.clock.advance(2)
+        self.assertEqual(self.transport.value(), oack_datagram * 3)
+        self.failUnless(self.transport.disconnecting)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
@@ -103,39 +386,78 @@ anotherline"""
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.rs = LocalOriginReadSession(('127.0.0.1', 65465), self.reader, _clock=self.clock)
-        self.wd = MockHandshakeWatchdog(4, self.rs.cancel, _clock=self.clock)
-        self.rs.handshake_timeout_watchdog = self.wd
+        self.wd = MockHandshakeWatchdog(4, self.rs.timedOut, _clock=self.clock)
+        self.rs.timeout_watchdog = self.wd
         self.rs.transport = self.transport
-
-    @inlineCallbacks
-    def test_invalid_tid(self):
         self.rs.startProtocol()
+
+    def test_invalid_tid(self):
         data_datagram = DATADatagram(1, 'foobar')
-        yield self.rs.datagramReceived(data_datagram, ('127.0.0.1', 11111))
+        self.rs.datagramReceived(data_datagram, ('127.0.0.1', 11111))
+        self.clock.advance(0.1)
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(err_dgram.errorcode, ERR_TID_UNKNOWN)
         self.addCleanup(self.rs.cancel)
 
     def test_local_origin_read_session_handshake_timeout(self):
-        self.rs.startProtocol()
         self.clock.advance(5)
         self.failIf(self.transport.value())
         self.failUnless(self.transport.disconnecting)
 
     def test_local_origin_read_session_handshake_success(self):
-        self.rs.startProtocol()
         self.clock.advance(1)
         ack_datagram = ACKDatagram(0)
-        d = self.rs.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 65465))
-        def cb(ign):
-            self.clock.advance(0.1)
-            self.failUnless(self.transport.value())
-            self.failIf(self.transport.disconnecting)
-            self.failIf(self.wd.active())
-        self.addCleanup(self.rs.cancel)
-        d.addCallback(cb)
+        self.rs.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(2)
-        return d
+        self.failUnless(self.transport.value())
+        self.failIf(self.transport.disconnecting)
+        self.failIf(self.wd.active())
+        self.addCleanup(self.rs.cancel)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir_path)
+
+
+class LocalOriginReadOptionNegotiation(unittest.TestCase):
+    test_data = """line1
+line2
+anotherline"""
+    port = 65466
+
+    def setUp(self):
+        self.clock = Clock()
+        self.tmp_dir_path = tempfile.mkdtemp()
+        self.target = FilePath(self.tmp_dir_path).child('foo')
+        with self.target.open('wb') as temp_fd:
+            temp_fd.write(self.test_data)
+        self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
+        self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.rs = LocalOriginReadSession(('127.0.0.1', 65465), self.reader, _clock=self.clock)
+        self.wd = MockHandshakeWatchdog(4, self.rs.timedOut, _clock=self.clock)
+        self.rs.timeout_watchdog = self.wd
+        self.rs.transport = self.transport
+
+    def test_option_normal(self):
+        self.rs.startProtocol()
+        self.rs.datagramReceived(OACKDatagram({'blksize':'9'}).to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
+        self.assertEqual(self.rs.session.block_size, 9)
+        self.clock.pump((1,)*3)
+        self.assertEqual(self.transport.value(), DATADatagram(1, self.test_data[:9]).to_wire())
+
+        self.rs.datagramReceived(OACKDatagram({'blksize':'12'}).to_wire(), ('127.0.0.1', 65465))
+        self.clock.advance(0.1)
+        self.assertEqual(self.rs.session.block_size, 9)
+
+        self.transport.clear()
+        self.rs.datagramReceived(ACKDatagram(1).to_wire(), ('127.0.0.1', 65465))
+        self.clock.pump((1,)*3)
+        self.assertEqual(self.transport.value(), DATADatagram(2, self.test_data[9:18]).to_wire())
+
+    def test_local_origin_read_option_timeout(self):
+        self.rs.startProtocol()
+        self.clock.advance(5)
+        self.failUnless(self.transport.disconnecting)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
@@ -160,6 +482,7 @@ anotherline"""
 
     @inlineCallbacks
     def test_invalid_tid(self):
+        self.rs.startProtocol()
         data_datagram = DATADatagram(1, 'foobar')
         yield self.rs.datagramReceived(data_datagram, ('127.0.0.1', 11111))
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
@@ -169,77 +492,76 @@ anotherline"""
     def test_remote_origin_read_bootstrap(self):
         # First datagram
         self.rs.session.block_size = 5
-        d = self.rs.startProtocol()
-        def cb(res):
-            self.clock.advance(0.1) # because write is scheduled with callLater(0, ...)
-            data_datagram_1 = DATADatagram(1, self.test_data[:5])
+        self.rs.startProtocol()
+        self.clock.pump((1,)*3)
 
-            self.assertEqual(self.transport.value(), data_datagram_1.to_wire())
-            self.failIf(self.transport.disconnecting)
+        data_datagram_1 = DATADatagram(1, self.test_data[:5])
 
-            # Normal exchange continues
-            self.transport.clear()
-            d = self.rs.datagramReceived(ACKDatagram(1).to_wire(), ('127.0.0.1', 65465))
-            d.addCallback(cb_)
-            self.clock.advance(3)
-            return d
-        def cb_(z):
-            self.clock.advance(0.1) # same story here
-            data_datagram_2 = DATADatagram(2, self.test_data[5:10])
-            self.assertEqual(self.transport.value(), data_datagram_2.to_wire())
-            self.failIf(self.transport.disconnecting)
-            self.addCleanup(self.rs.cancel)
+        self.assertEqual(self.transport.value(), data_datagram_1.to_wire())
+        self.failIf(self.transport.disconnecting)
 
-        d.addCallback(cb)
-        self.clock.advance(3)
-        return d
+        # Normal exchange continues
+        self.transport.clear()
+        self.rs.datagramReceived(ACKDatagram(1).to_wire(), ('127.0.0.1', 65465))
+        self.clock.pump((1,)*3)
+        data_datagram_2 = DATADatagram(2, self.test_data[5:10])
+        self.assertEqual(self.transport.value(), data_datagram_2.to_wire())
+        self.failIf(self.transport.disconnecting)
+        self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
 
 
-class BootstrapRemoteOriginWrite(unittest.TestCase):
-
+class RemoteOriginReadOptionNegotiation(unittest.TestCase):
+    test_data = """line1
+line2
+anotherline"""
     port = 65466
 
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
         self.target = FilePath(self.tmp_dir_path).child('foo')
-        self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
+        with self.target.open('wb') as temp_fd:
+            temp_fd.write(self.test_data)
+        self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
-        self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
-        self.ws.transport = self.transport
+        self.rs = RemoteOriginReadSession(('127.0.0.1', 65465), self.reader,
+                                          options={'blksize':'9'}, _clock=self.clock)
+        self.rs.transport = self.transport
 
-    @inlineCallbacks
-    def test_invalid_tid(self):
-        bad_tid_dgram = ACKDatagram(123)
-        yield self.ws.datagramReceived(bad_tid_dgram.to_wire(), ('127.0.0.1', 1111))
-        err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-        self.assertEqual(err_dgram.errorcode, ERR_TID_UNKNOWN)
-        self.addCleanup(self.ws.cancel)
-
-    def test_remote_origin_write_bootstrap(self):
-        # Initial ACK
-        self.ws.startProtocol()
-        ack_datagram_0 = ACKDatagram(0)
+    def test_option_normal(self):
+        self.rs.startProtocol()
         self.clock.advance(0.1)
-        self.assertEqual(self.transport.value(), ack_datagram_0.to_wire())
+        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
+        self.clock.advance(3)
+        self.assertEqual(self.transport.value(), oack_datagram * 2)
+
+        self.transport.clear()
+        self.rs.datagramReceived(ACKDatagram(0).to_wire(), ('127.0.0.1', 65465))
+        self.clock.pump((1,)*3)
+        self.assertEqual(self.transport.value(), DATADatagram(1, self.test_data[:9]).to_wire())
+
+    def test_option_timeout(self):
+        self.rs.startProtocol()
+        self.clock.advance(0.1)
+        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
         self.failIf(self.transport.disconnecting)
 
-        # Normal exchange
-        self.transport.clear()
-        d = self.ws.datagramReceived(DATADatagram(1, 'foobar').to_wire(), ('127.0.0.1', 65465))
-        def cb(res):
-            self.clock.advance(0.1)
-            ack_datagram_1 = ACKDatagram(1)
-            self.assertEqual(self.transport.value(), ack_datagram_1.to_wire())
-            self.assertEqual(self.target.open('r').read(), 'foobar')
-            self.failIf(self.transport.disconnecting)
-            self.addCleanup(self.ws.cancel)
-        d.addCallback(cb)
         self.clock.advance(3)
-        return d
+        self.assertEqual(self.transport.value(), oack_datagram * 2)
+        self.failIf(self.transport.disconnecting)
+
+        self.clock.advance(2)
+        self.assertEqual(self.transport.value(), oack_datagram * 3)
+        self.failIf(self.transport.disconnecting)
+
+        self.clock.advance(2)
+        self.assertEqual(self.transport.value(), oack_datagram * 3)
+        self.failUnless(self.transport.disconnecting)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
