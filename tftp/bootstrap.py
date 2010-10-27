@@ -27,9 +27,10 @@ class TFTPBootstrap(DatagramProtocol):
     @type session: L{WriteSession} or L{ReadSession}
 
     @ivar options: a mapping of options, that this protocol instance was
-    initialized with. If it is C{None} and we are the server, usual logic (that
-    doesn't involve OACK datagrams) is used. Default: C{None}.
-    @type options: L{OrderedDict<twisted.python.util.OrderedDict>} or C{None}
+    initialized with. If it is empty and we are the server, usual logic (that
+    doesn't involve OACK datagrams) is used.
+    Default: L{OrderedDict<twisted.python.util.OrderedDict>}.
+    @type options: L{OrderedDict<twisted.python.util.OrderedDict>}
 
     @ivar resultant_options: stores the last options mapping value, that was passed
     from the remote peer
@@ -237,7 +238,7 @@ class RemoteOriginWriteSession(TFTPBootstrap):
 
         """
         self.transport.connect(*self.remote)
-        if self.options is not None:
+        if self.options:
             self.resultant_options = self.processOptions(self.options)
             bytes = OACKDatagram(self.resultant_options).to_wire()
         else:
@@ -341,7 +342,7 @@ class RemoteOriginReadSession(TFTPBootstrap):
 
         """
         self.transport.connect(*self.remote)
-        if self.options is not None:
+        if self.options:
             self.resultant_options = self.processOptions(self.options)
             bytes = OACKDatagram(self.resultant_options).to_wire()
             self.timeout_watchdog = SequentialCall.run(

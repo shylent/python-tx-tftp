@@ -454,6 +454,8 @@ anotherline"""
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), DATADatagram(2, self.test_data[9:18]).to_wire())
 
+        self.addCleanup(self.rs.cancel)
+
     def test_local_origin_read_option_timeout(self):
         self.rs.startProtocol()
         self.clock.advance(5)
@@ -543,6 +545,8 @@ anotherline"""
         self.rs.datagramReceived(ACKDatagram(0).to_wire(), ('127.0.0.1', 65465))
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), DATADatagram(1, self.test_data[:9]).to_wire())
+
+        self.addCleanup(self.rs.cancel)
 
     def test_option_timeout(self):
         self.rs.startProtocol()
