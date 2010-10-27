@@ -7,20 +7,20 @@ from tftp.datagram import (TFTPDatagramFactory, split_opcode, OP_WRQ,
     ERR_ILLEGAL_OP, OP_RRQ, ERR_FILE_NOT_FOUND)
 from tftp.errors import (FileExists, Unsupported, AccessViolation, BackendError,
     FileNotFound)
-from tftp.netascii import NetasciiReceiverProxy
+from tftp.netascii import NetasciiReceiverProxy, NetasciiSenderProxy
 from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
-import random
 
 
 class TFTP(DatagramProtocol):
 
-    def __init__(self, backend):
+    def __init__(self, backend, _clock=None):
         self.backend = backend
-
-    def _free_port(self):
-        return random.randint(49152, 65535)
+        if _clock is None:
+            self._clock = reactor
+        else:
+            self._clock = _clock
 
     def startProtocol(self):
         addr = self.transport.getHost()
@@ -29,47 +29,38 @@ class TFTP(DatagramProtocol):
     def datagramReceived(self, datagram, addr):
         datagram = TFTPDatagramFactory(*split_opcode(datagram))
         log.msg("Datagram received from %s: %s" % (addr, datagram))
+
+        mode = datagram.mode.lower()
+        if datagram.mode not in ('netascii', 'octet'):
+            return self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
+                "Unknown transfer mode %s, - expected "
+                "'netascii' or 'octet' (case-insensitive)" % mode).to_wire(), addr)
+        try:
+            if datagram.opcode == OP_WRQ:
+                fs_interface = self.backend.get_writer(datagram.filename)
+            elif datagram.opcode == OP_RRQ:
+                fs_interface = self.backend.get_reader(datagram.filename)
+        except Unsupported, e:
+            return self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
+                                    str(e)).to_wire(), addr)
+        except AccessViolation:
+            return self.transport.write(ERRORDatagram.from_code(ERR_ACCESS_VIOLATION).to_wire(), addr)
+        except FileExists:
+            return self.transport.write(ERRORDatagram.from_code(ERR_FILE_EXISTS).to_wire(), addr)
+        except FileNotFound:
+            return self.transport.write(ERRORDatagram.from_code(ERR_FILE_NOT_FOUND).to_wire(), addr)
+        except BackendError, e:
+            return self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, str(e)).to_wire(), addr)
+
         if datagram.opcode == OP_WRQ:
-            try:
-                writer = self.backend.get_writer(datagram.filename)
-            except Unsupported:
-                self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED,
-                                        "Writing not supported").to_wire(), addr)
-            except AccessViolation:
-                self.transport.write(ERRORDatagram.from_code(ERR_ACCESS_VIOLATION).to_wire(), addr)
-            except FileExists:
-                self.transport.write(ERRORDatagram.from_code(ERR_FILE_EXISTS).to_wire(), addr)
-            except BackendError, e:
-                self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, str(e)).to_wire(), addr)
-            else:
-                if datagram.mode.lower() == 'netascii':
-                    writer = NetasciiReceiverProxy(writer)
-                elif datagram.mode.lower() != 'octet':
-                    self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
-                                        "Unknown transfer mode %s, - expected "
-                                        "'netascii' or 'octet' (case-insensitive)").to_wire(), addr)
-                session = RemoteOriginWriteSession(addr, writer)
-                my_port = self._free_port()
-                reactor.listenUDP(my_port, session)
+            if mode == 'netascii':
+                fs_interface = NetasciiReceiverProxy(fs_interface)
+            session = RemoteOriginWriteSession(addr, fs_interface,
+                                               datagram.options, _clock=self._clock)
+            reactor.listenUDP(0, session)
         elif datagram.opcode == OP_RRQ:
-            try:
-                reader = self.backend.get_reader(datagram.filename)
-            except Unsupported:
-                self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED,
-                                                   "Writing not supported").to_wire(), addr)
-            except AccessViolation:
-                self.transport.write(ERRORDatagram.from_code(ERR_ACCESS_VIOLATION).to_wire(), addr)
-            except FileNotFound:
-                self.transport.write(ERRORDatagram.from_code(ERR_FILE_NOT_FOUND).to_wire(), addr)
-            except BackendError, e:
-                self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, str(e)).to_wire(), addr)
-            else:
-                if datagram.mode.lower() == 'netascii':
-                    reader = NetasciiReceiverProxy(reader)
-                elif datagram.mode.lower() != 'octet':
-                    self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
-                                        "Unknown transfer mode %s, - expected "
-                                        "'netascii' or 'octet' (case-insensitive)").to_wire(), addr)
-                session = RemoteOriginReadSession(addr, reader)
-                my_port = self._free_port()
-                reactor.listenUDP(my_port, session)
+            if mode == 'netascii':
+                fs_interface = NetasciiSenderProxy(fs_interface)
+            session = RemoteOriginReadSession(addr, fs_interface,
+                                              datagram.options, _clock=self._clock)
+            reactor.listenUDP(0, session)
