@@ -49,7 +49,10 @@ class TFTPBootstrap(DatagramProtocol):
     supported_options = ('blksize', 'timeout')
 
     def __init__(self, remote, backend, options=None, _clock=None):
-        self.options = options
+        if options is None:
+            self.options = OrderedDict()
+        else:
+            self.options = options
         self.resultant_options = OrderedDict()
         self.remote = remote
         self.timeout_watchdog = None
@@ -139,6 +142,16 @@ class TFTPBootstrap(DatagramProtocol):
                 timeout = int(opt_val)
                 session.timeout = (timeout,) * 3
 
+    def datagramReceived(self, datagram, addr):
+        if self.remote[1] != addr[1]:
+            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
+            return# Does not belong to this transfer
+        datagram = TFTPDatagramFactory(*split_opcode(datagram))
+        log.msg("Datagram received from %s: %s" % (addr, datagram))
+        if datagram.opcode == OP_ERROR:
+            return self.tftp_ERROR(datagram)
+        return self._datagramReceived(datagram)
+
     def tftp_ERROR(self, datagram):
         """Handle the L{ERRORDatagram}.
 
@@ -161,7 +174,7 @@ class TFTPBootstrap(DatagramProtocol):
         else:
             self.backend.finish()
             self.transport.stopListening()
-    
+
     def timedOut(self):
         """This protocol instance has timed out during the initial handshake."""
         log.msg("Timed during option negotiation process")
@@ -199,15 +212,8 @@ class LocalOriginWriteSession(TFTPBootstrap):
             log.msg("Duplicate OACK received, send back ACK and ignore")
             self.transport.write(ACKDatagram(0).to_wire())
 
-    def datagramReceived(self, datagram, addr):
-        if self.remote[1] != addr[1]:
-            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
-            return # Does not belong to this transfer
-        datagram = TFTPDatagramFactory(*split_opcode(datagram))
-        log.msg("Datagram received from %s: %s" % (addr, datagram))
-        if datagram.opcode == OP_ERROR:
-            return self.tftp_ERROR(datagram)
-        elif datagram.opcode == OP_OACK:
+    def _datagramReceived(self, datagram):
+        if datagram.opcode == OP_OACK:
             return self.tftp_OACK(datagram)
         elif datagram.opcode == OP_DATA and datagram.blocknum == 1:
             if self.timeout_watchdog is not None and self.timeout_watchdog.active():
@@ -251,15 +257,8 @@ class RemoteOriginWriteSession(TFTPBootstrap):
             _clock=self._clock
         )
 
-    def datagramReceived(self, datagram, addr):
-        if self.remote[1] != addr[1]:
-            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
-            return # Does not belong to this transfer
-        datagram = TFTPDatagramFactory(*split_opcode(datagram))
-        log.msg("Datagram received from %s: %s" % (addr, datagram))
-        if datagram.opcode == OP_ERROR:
-            return self.tftp_ERROR(datagram)
-        elif datagram.opcode == OP_DATA and datagram.blocknum == 1:
+    def _datagramReceived(self, datagram):
+        if datagram.opcode == OP_DATA and datagram.blocknum == 1:
             if self.timeout_watchdog.active():
                 self.timeout_watchdog.cancel()
             if not self.session.started:
@@ -286,15 +285,8 @@ class LocalOriginReadSession(TFTPBootstrap):
         if self.timeout_watchdog is not None:
             self.timeout_watchdog.start()
 
-    def datagramReceived(self, datagram, addr):
-        if self.remote[1] != addr[1]:
-            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
-            return # Does not belong to this transfer
-        datagram = TFTPDatagramFactory(*split_opcode(datagram))
-        log.msg("Datagram received from %s: %s" % (addr, datagram))
-        if datagram.opcode == OP_ERROR:
-            return self.tftp_ERROR(datagram)
-        elif datagram.opcode == OP_OACK:
+    def _datagramReceived(self, datagram):
+        if datagram.opcode == OP_OACK:
             return self.tftp_OACK(datagram)
         elif (datagram.opcode == OP_ACK and datagram.blocknum == 0
                     and not self.session.started):
@@ -357,15 +349,8 @@ class RemoteOriginReadSession(TFTPBootstrap):
             self.session.startProtocol()
             return self.session.nextBlock()
 
-    def datagramReceived(self, datagram, addr):
-        if self.remote[1] != addr[1]:
-            self.transport.write(ERRORDatagram.from_code(ERR_TID_UNKNOWN).to_wire())
-            return # Does not belong to this transfer
-        datagram = TFTPDatagramFactory(*split_opcode(datagram))
-        log.msg("Datagram received from %s: %s" % (addr, datagram))
-        if datagram.opcode == OP_ERROR:
-            return self.tftp_ERROR(datagram)
-        elif datagram.opcode == OP_ACK and datagram.blocknum == 0:
+    def _datagramReceived(self, datagram):
+        if datagram.opcode == OP_ACK and datagram.blocknum == 0:
             return self.tftp_ACK(datagram)
         elif self.session.started:
             return self.session.datagramReceived(datagram)
