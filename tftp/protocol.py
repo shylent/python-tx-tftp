@@ -14,7 +14,14 @@ from twisted.python import log
 
 
 class TFTP(DatagramProtocol):
+    """TFTP dispatch protocol. Handles read requests (RRQ) and write requests (WRQ)
+    and starts the corresponding sessions.
 
+    @ivar backend: an L{IBackend} provider, that will handle interaction with
+    local resources
+    @type backend: L{IBackend} provider
+
+    """
     def __init__(self, backend, _clock=None):
         self.backend = backend
         if _clock is None:
@@ -58,9 +65,11 @@ class TFTP(DatagramProtocol):
             session = RemoteOriginWriteSession(addr, fs_interface,
                                                datagram.options, _clock=self._clock)
             reactor.listenUDP(0, session)
+            return session
         elif datagram.opcode == OP_RRQ:
             if mode == 'netascii':
                 fs_interface = NetasciiSenderProxy(fs_interface)
             session = RemoteOriginReadSession(addr, fs_interface,
                                               datagram.options, _clock=self._clock)
             reactor.listenUDP(0, session)
+            return session

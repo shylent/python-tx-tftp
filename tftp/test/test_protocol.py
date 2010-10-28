@@ -1,16 +1,23 @@
 '''
 @author: shylent
 '''
-
+from tftp.backend import FilesystemSynchronousBackend
+from tftp.bootstrap import RemoteOriginWriteSession, RemoteOriginReadSession
 from tftp.datagram import (WRQDatagram, TFTPDatagramFactory, split_opcode,
     ERR_ILLEGAL_OP, RRQDatagram, ERR_ACCESS_VIOLATION, ERR_FILE_EXISTS,
     ERR_FILE_NOT_FOUND, ERR_NOT_DEFINED)
 from tftp.errors import (Unsupported, AccessViolation, FileExists, FileNotFound,
     BackendError)
+from tftp.netascii import NetasciiReceiverProxy, NetasciiSenderProxy
 from tftp.protocol import TFTP
+from twisted.internet import reactor
+from twisted.internet.defer import Deferred
+from twisted.internet.protocol import DatagramProtocol
 from twisted.internet.task import Clock
+from twisted.python.filepath import FilePath
 from twisted.test.proto_helpers import StringTransport
 from twisted.trial import unittest
+import tempfile
 
 
 class DummyBackend(object):
@@ -117,3 +124,56 @@ class DispatchErrors(unittest.TestCase):
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_NOT_DEFINED)
+
+class DummyClient(DatagramProtocol):
+
+    def __init__(self, *args, **kwargs):
+        self.ready = Deferred()
+
+    def startProtocol(self):
+        self.ready.callback(None)
+
+class TFTPWrapper(TFTP):
+
+    def datagramReceived(self, *args, **kwargs):
+        self.session = TFTP.datagramReceived(self, *args, **kwargs)
+
+
+class SuccessfulDispatch(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp_dir_path = tempfile.mkdtemp()
+        with FilePath(self.tmp_dir_path).child('nonempty').open('w') as fd:
+            fd.write('Something uninteresting')
+        self.backend = FilesystemSynchronousBackend(self.tmp_dir_path)
+        self.tftp = TFTPWrapper(self.backend)
+        self.client = DummyClient()
+        reactor.listenUDP(0, self.client)
+        self.server_port = reactor.listenUDP(1069, self.tftp)
+
+    # Ok. I am going to hell for these two tests
+    def test_WRQ(self):
+        self.client.transport.write(WRQDatagram('foobar', 'NetASCiI', {}).to_wire(), ('127.0.0.1', 1069))
+        d = Deferred()
+        def cb(ign):
+            self.failUnless(isinstance(self.tftp.session, RemoteOriginWriteSession))
+            self.failUnless(isinstance(self.tftp.session.backend, NetasciiReceiverProxy))
+            self.tftp.session.cancel()
+        d.addCallback(cb)
+        reactor.callLater(0.5, d.callback, None)
+        return d
+
+    def test_RRQ(self):
+        self.client.transport.write(RRQDatagram('nonempty', 'NetASCiI', {}).to_wire(), ('127.0.0.1', 1069))
+        d = Deferred()
+        def cb(ign):
+            self.failUnless(isinstance(self.tftp.session, RemoteOriginReadSession))
+            self.failUnless(isinstance(self.tftp.session.backend, NetasciiSenderProxy))
+            self.tftp.session.cancel()
+        d.addCallback(cb)
+        reactor.callLater(0.5, d.callback, None)
+        return d
+
+    def tearDown(self):
+        self.tftp.transport.stopListening()
+        self.client.transport.stopListening()
