@@ -10,12 +10,13 @@ A Twisted-based TFTP implementation
  not rely on this anywhere, so plugging in an asynchronous backend should not be
  a problem.
  - netascii transfer mode.
+ - Option negotiation support. 'blksize' and 'timeout' options are supported.
  - An actual TFTP server.
- - Tests for everything, besides the "outermost" dispatcher protocol
+ - Plugin for twistd.
+ - Tests
  - Docstrings
 
 ##Plans
- - Even more docstrings
- - A convenient interface for sending/receiving files, turn it into a twistd plugin.
- - Support for option negotiation.
- - Multicast.
+ - Client-specific commandline interface.
+ - Code cleanup.
+ - Multicast support (possibly).
