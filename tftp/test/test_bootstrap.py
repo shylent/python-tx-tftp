@@ -343,14 +343,18 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.target = FilePath(self.tmp_dir_path).child('foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
-        self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer,
-                                           options={'blksize':'9'}, _clock=self.clock)
+        self.options = OrderedDict()
+        self.options['blksize'] = '9'
+        self.options['tsize'] = '45'
+        self.ws = RemoteOriginWriteSession(
+            ('127.0.0.1', 65465), self.writer, options=self.options,
+            _clock=self.clock)
         self.ws.transport = self.transport
 
     def test_option_normal(self):
         self.ws.startProtocol()
         self.clock.advance(0.1)
-        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
         self.clock.advance(3)
         self.assertEqual(self.transport.value(), oack_datagram * 2)
@@ -373,7 +377,7 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
     def test_option_timeout(self):
         self.ws.startProtocol()
         self.clock.advance(0.1)
-        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
         self.failIf(self.transport.disconnecting)
 
@@ -388,6 +392,22 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
         self.failUnless(self.transport.disconnecting)
+
+    def test_option_tsize(self):
+        # A tsize option sent as part of a write session is recorded.
+        self.ws.startProtocol()
+        self.clock.advance(0.1)
+        oack_datagram = OACKDatagram(self.options).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
+        self.failIf(self.transport.disconnecting)
+        self.assertIsInstance(self.ws.session, WriteSession)
+        # Options are not applied to the WriteSession until the first DATA
+        # datagram is received,
+        self.assertIsNone(self.ws.session.tsize)
+        self.ws.datagramReceived(
+            DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+        # The tsize option has been applied to the WriteSession.
+        self.assertEqual(45, self.ws.session.tsize)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
