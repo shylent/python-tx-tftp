@@ -131,6 +131,20 @@ class TestOptionProcessing(unittest.TestCase):
         self.assertEqual(self.s.tsize, 1)
         self.assertEqual(opts, OrderedDict({'tsize':'1'}))
 
+    def test_tsize_ignored_when_not_a_number(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'tsize':'foo'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertIsNone(self.s.tsize)
+        self.assertEqual(opts, OrderedDict({}))
+
+    def test_tsize_ignored_when_less_than_zero(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'tsize':'-1'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertIsNone(self.s.tsize)
+        self.assertEqual(opts, OrderedDict({}))
+
     def test_multiple_options(self):
         got_options = OrderedDict()
         got_options['timeout'] = '123'
