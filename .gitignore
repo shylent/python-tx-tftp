@@ -1,4 +1,7 @@
 *.pyc
 *.pyo
 *~
-
+/_trial_temp
+/TAGS
+/tags
+dropin.cache
