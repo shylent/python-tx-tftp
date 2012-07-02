@@ -47,6 +47,7 @@ class MockHandshakeWatchdog(object):
 class MockSession(object):
     block_size = 512
     timeout = (1, 3, 5)
+    tsize = None
 
 # Testing implementation here, but if I don't, I'll have a TON of duplicate code
 class TestOptionProcessing(unittest.TestCase):
@@ -122,6 +123,13 @@ class TestOptionProcessing(unittest.TestCase):
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (1, 3, 5))
         self.assertEqual(opts, OrderedDict())
+
+    def test_tsize(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'tsize':'1'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.tsize, 1)
+        self.assertEqual(opts, OrderedDict({'tsize':'1'}))
 
     def test_multiple_options(self):
         got_options = OrderedDict()
