@@ -350,6 +350,22 @@ class RemoteOriginReadSession(TFTPBootstrap):
         TFTPBootstrap.__init__(self, remote, reader, options, _clock)
         self.session = ReadSession(reader, self._clock)
 
+    def option_tsize(self, val):
+        """Process tsize option.
+
+        If tsize is zero, get the size of the file to be read so that it can
+        be returned in the OACK datagram.
+
+        @see: L{TFTPBootstrap.option_tsize}
+
+        """
+        val = TFTPBootstrap.option_tsize(self, val)
+        if val == str(0):
+            val = self.session.reader.size
+            if val is not None:
+                val = str(val)
+        return val
+
     def startProtocol(self):
         """Start sending an OACK datagram if we were initialized with options
         or start the L{ReadSession} immediately.
