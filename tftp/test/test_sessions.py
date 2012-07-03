@@ -54,6 +54,8 @@ class DelayedWriter(FilesystemWriter):
 class FailingReader(object):
     interface.implements(IReader)
 
+    size = None
+
     def read(self, size):
         raise IOError('A failure')
 

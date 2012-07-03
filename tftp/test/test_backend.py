@@ -73,6 +73,10 @@ line3
                         "The file has been exhausted and should be in the closed state")
         self.assertEqual(ostring, self.test_data)
 
+    def test_size(self):
+        r = FilesystemReader(self.temp_dir.child('foo'))
+        self.assertEqual(len(self.test_data), r.size)
+
     def test_cancel(self):
         r = FilesystemReader(self.temp_dir.child('foo'))
         r.read(3)

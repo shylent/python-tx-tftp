@@ -62,6 +62,9 @@ class IBackend(interface.Interface):
 class IReader(interface.Interface):
     """An object, that performs reads on request of the TFTP protocol"""
 
+    size = interface.Attribute(
+        "The size of the file to be read, or C{None} if it's not known.")
+
     def read(size):
         """Attempt to read C{size} number of bytes.
 
@@ -129,6 +132,14 @@ class FilesystemReader(object):
         except IOError:
             raise FileNotFound(self.file_path)
         self.state = 'active'
+
+    @property
+    def size(self):
+        """
+        @see: L{IReader.size}
+
+        """
+        return self.file_path.getsize()
 
     def read(self, size):
         """
