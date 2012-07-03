@@ -12,9 +12,8 @@ A Twisted-based TFTP implementation
  - netascii transfer mode.
  - [RFC2347](http://tools.ietf.org/html/rfc2347) (TFTP Option
 Extension) support. *blksize*
-([RFC2348](http://tools.ietf.org/html/rfc2348)) and *timeout* (partial
-support for [RFC2349](http://tools.ietf.org/html/rfc2349)) options are
-supported.
+([RFC2348](http://tools.ietf.org/html/rfc2348)), *timeout* and *tsize*
+([RFC2349](http://tools.ietf.org/html/rfc2349)) options are supported.
  - An actual TFTP server.
  - Plugin for twistd.
  - Tests
