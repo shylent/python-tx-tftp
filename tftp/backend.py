@@ -32,7 +32,8 @@ class IBackend(interface.Interface):
         @raise BackendError: for any other errors, that were encountered while
         attempting to construct a reader
 
-        @return: an object, that provides L{IReader}
+        @return: an object, that provides L{IReader}, or a L{Deferred} that
+        will fire with an L{IReader}
 
         """
 
@@ -55,7 +56,8 @@ class IBackend(interface.Interface):
         @raise BackendError: for any other errors, that were encountered while
         attempting to construct a writer
 
-        @return: an object, that provides L{IWriter}
+        @return: an object, that provides L{IWriter}, or a L{Deferred} that
+        will fire with an L{IWriter}
 
         """
 
