@@ -156,8 +156,8 @@ class SuccessfulDispatch(unittest.TestCase):
         self.client.transport.write(WRQDatagram('foobar', 'NetASCiI', {}).to_wire(), ('127.0.0.1', 1069))
         d = Deferred()
         def cb(ign):
-            self.failUnless(isinstance(self.tftp.session, RemoteOriginWriteSession))
-            self.failUnless(isinstance(self.tftp.session.backend, NetasciiReceiverProxy))
+            self.assertIsInstance(self.tftp.session, RemoteOriginWriteSession)
+            self.assertIsInstance(self.tftp.session.backend, NetasciiReceiverProxy)
             self.tftp.session.cancel()
         d.addCallback(cb)
         reactor.callLater(0.5, d.callback, None)
@@ -167,8 +167,8 @@ class SuccessfulDispatch(unittest.TestCase):
         self.client.transport.write(RRQDatagram('nonempty', 'NetASCiI', {}).to_wire(), ('127.0.0.1', 1069))
         d = Deferred()
         def cb(ign):
-            self.failUnless(isinstance(self.tftp.session, RemoteOriginReadSession))
-            self.failUnless(isinstance(self.tftp.session.backend, NetasciiSenderProxy))
+            self.assertIsInstance(self.tftp.session, RemoteOriginReadSession)
+            self.assertIsInstance(self.tftp.session.backend, NetasciiSenderProxy)
             self.tftp.session.cancel()
         d.addCallback(cb)
         reactor.callLater(0.5, d.callback, None)
