@@ -1,6 +1,7 @@
 '''
 @author: shylent
 '''
+from os import fstat
 from tftp.errors import Unsupported, FileExists, AccessViolation, FileNotFound
 from twisted.python.filepath import FilePath, InsecurePath
 import shutil
@@ -141,7 +142,10 @@ class FilesystemReader(object):
         @see: L{IReader.size}
 
         """
-        return self.file_path.getsize()
+        if self.file_obj.closed:
+            return None
+        else:
+            return fstat(self.file_obj.fileno()).st_size
 
     def read(self, size):
         """

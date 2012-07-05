@@ -77,6 +77,18 @@ line3
         r = FilesystemReader(self.temp_dir.child('foo'))
         self.assertEqual(len(self.test_data), r.size)
 
+    def test_size_when_reader_finished(self):
+        r = FilesystemReader(self.temp_dir.child('foo'))
+        r.finish()
+        self.assertIsNone(r.size)
+
+    def test_size_when_file_removed(self):
+        # FilesystemReader.size uses fstat() to discover the file's size, so
+        # the absence of the file does not matter.
+        r = FilesystemReader(self.temp_dir.child('foo'))
+        self.existing_file_name.remove()
+        self.assertEqual(len(self.test_data), r.size)
+
     def test_cancel(self):
         r = FilesystemReader(self.temp_dir.child('foo'))
         r.read(3)
