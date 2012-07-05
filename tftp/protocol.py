@@ -56,31 +56,26 @@ class TFTP(DatagramProtocol):
         except Unsupported, e:
             self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
                                     str(e)).to_wire(), addr)
-            return
         except AccessViolation:
             self.transport.write(ERRORDatagram.from_code(ERR_ACCESS_VIOLATION).to_wire(), addr)
-            return
         except FileExists:
             self.transport.write(ERRORDatagram.from_code(ERR_FILE_EXISTS).to_wire(), addr)
-            return
         except FileNotFound:
             self.transport.write(ERRORDatagram.from_code(ERR_FILE_NOT_FOUND).to_wire(), addr)
-            return
         except BackendError, e:
             self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, str(e)).to_wire(), addr)
-            return
-
-        if datagram.opcode == OP_WRQ:
-            if mode == 'netascii':
-                fs_interface = NetasciiReceiverProxy(fs_interface)
-            session = RemoteOriginWriteSession(addr, fs_interface,
-                                               datagram.options, _clock=self._clock)
-            reactor.listenUDP(0, session)
-            returnValue(session)
-        elif datagram.opcode == OP_RRQ:
-            if mode == 'netascii':
-                fs_interface = NetasciiSenderProxy(fs_interface)
-            session = RemoteOriginReadSession(addr, fs_interface,
-                                              datagram.options, _clock=self._clock)
-            reactor.listenUDP(0, session)
-            returnValue(session)
+        else:
+            if datagram.opcode == OP_WRQ:
+                if mode == 'netascii':
+                    fs_interface = NetasciiReceiverProxy(fs_interface)
+                session = RemoteOriginWriteSession(addr, fs_interface,
+                                                   datagram.options, _clock=self._clock)
+                reactor.listenUDP(0, session)
+                returnValue(session)
+            elif datagram.opcode == OP_RRQ:
+                if mode == 'netascii':
+                    fs_interface = NetasciiSenderProxy(fs_interface)
+                session = RemoteOriginReadSession(addr, fs_interface,
+                                                  datagram.options, _clock=self._clock)
+                reactor.listenUDP(0, session)
+                returnValue(session)
