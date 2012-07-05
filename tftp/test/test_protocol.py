@@ -72,12 +72,14 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         wrq_datagram = WRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(wrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ILLEGAL_OP)
 
         self.transport.clear()
         rrq_datagram = RRQDatagram('foobar', 'octet', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ILLEGAL_OP)
 
@@ -86,12 +88,14 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         wrq_datagram = WRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(wrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ACCESS_VIOLATION)
 
         self.transport.clear()
         rrq_datagram = RRQDatagram('foobar', 'octet', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ACCESS_VIOLATION)
 
@@ -100,6 +104,7 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         wrq_datagram = WRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(wrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_FILE_EXISTS)
 
@@ -108,6 +113,7 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         rrq_datagram = RRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_FILE_NOT_FOUND)
 
@@ -116,12 +122,14 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         rrq_datagram = RRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_NOT_DEFINED)
 
         self.transport.clear()
         rrq_datagram = RRQDatagram('foobar', 'octet', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_NOT_DEFINED)
 
@@ -136,8 +144,14 @@ class DummyClient(DatagramProtocol):
 class TFTPWrapper(TFTP):
 
     def _startSession(self, *args, **kwargs):
-        self.session = TFTP._startSession(self, *args, **kwargs)
-        return self.session
+        d = TFTP._startSession(self, *args, **kwargs)
+
+        def save_session(session):
+            self.session = session
+            return session
+
+        d.addCallback(save_session)
+        return d
 
 
 class SuccessfulDispatch(unittest.TestCase):
