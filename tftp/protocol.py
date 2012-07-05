@@ -42,6 +42,10 @@ class TFTP(DatagramProtocol):
             return self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
                 "Unknown transfer mode %s, - expected "
                 "'netascii' or 'octet' (case-insensitive)" % mode).to_wire(), addr)
+
+        self._clock.callLater(0, self._startSession, datagram, addr, mode)
+
+    def _startSession(self, datagram, addr, mode):
         try:
             if datagram.opcode == OP_WRQ:
                 fs_interface = self.backend.get_writer(datagram.filename)

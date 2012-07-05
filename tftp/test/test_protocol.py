@@ -135,8 +135,9 @@ class DummyClient(DatagramProtocol):
 
 class TFTPWrapper(TFTP):
 
-    def datagramReceived(self, *args, **kwargs):
-        self.session = TFTP.datagramReceived(self, *args, **kwargs)
+    def _startSession(self, *args, **kwargs):
+        self.session = TFTP._startSession(self, *args, **kwargs)
+        return self.session
 
 
 class SuccessfulDispatch(unittest.TestCase):
