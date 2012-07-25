@@ -3,6 +3,7 @@
 '''
 from os import fstat
 from tftp.errors import Unsupported, FileExists, AccessViolation, FileNotFound
+from twisted.internet.defer import succeed
 from twisted.python.filepath import FilePath, InsecurePath
 import shutil
 import tempfile
@@ -33,8 +34,7 @@ class IBackend(interface.Interface):
         @raise BackendError: for any other errors, that were encountered while
         attempting to construct a reader
 
-        @return: an object, that provides L{IReader}, or a L{Deferred} that
-        will fire with an L{IReader}
+        @return: a L{Deferred} that will fire with an L{IReader}
 
         """
 
@@ -57,8 +57,7 @@ class IBackend(interface.Interface):
         @raise BackendError: for any other errors, that were encountered while
         attempting to construct a writer
 
-        @return: an object, that provides L{IWriter}, or a L{Deferred} that
-        will fire with an L{IWriter}
+        @return: a L{Deferred} that will fire with an L{IWriter}
 
         """
 
@@ -261,8 +260,7 @@ class FilesystemSynchronousBackend(object):
         """
         @see: L{IBackend.get_reader}
 
-        @return: an object, providing L{IReader}
-        @rtype: L{FilesystemReader}
+        @rtype: L{Deferred}, yielding a L{FilesystemReader}
 
         """
         if not self.can_read:
@@ -271,14 +269,14 @@ class FilesystemSynchronousBackend(object):
             target_path = self.base.child(file_name)
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
-        return FilesystemReader(target_path)
+        reader = FilesystemReader(target_path)
+        return succeed(reader)
 
     def get_writer(self, file_name):
         """
         @see: L{IBackend.get_writer}
 
-        @return: an object, providing L{IWriter}
-        @rtype: L{FilesystemWriter}
+        @rtype: L{Deferred}, yielding a L{FilesystemWriter}
 
         """
         if not self.can_write:
@@ -287,4 +285,5 @@ class FilesystemSynchronousBackend(object):
             target_path = self.base.child(file_name)
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
-        return FilesystemWriter(target_path)
+        writer = FilesystemWriter(target_path)
+        return succeed(writer)
