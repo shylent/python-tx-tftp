@@ -7,7 +7,6 @@ from tftp.errors import Unsupported, AccessViolation, FileNotFound, FileExists
 from twisted.python.filepath import FilePath
 from twisted.internet.defer import inlineCallbacks
 from twisted.trial import unittest
-import os.path
 import shutil
 import tempfile
 
@@ -20,44 +19,43 @@ line3
 
 
     def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.existing_file_name = os.path.join(self.temp_dir, 'dir', 'foo')
-        os.mkdir(os.path.dirname(self.existing_file_name))
-        with open(self.existing_file_name, 'w') as f:
-            f.write(self.test_data)
+        self.temp_dir = FilePath(tempfile.mkdtemp())
+        self.existing_file_name = self.temp_dir.descendant(("dir", "foo"))
+        self.existing_file_name.parent().makedirs()
+        self.existing_file_name.setContent(self.test_data)
 
     @inlineCallbacks
     def test_read_supported_by_default(self):
-        b = FilesystemSynchronousBackend(self.temp_dir)
+        b = FilesystemSynchronousBackend(self.temp_dir.path)
         reader = yield b.get_reader('dir/foo')
         self.assertTrue(IReader.providedBy(reader))
 
     @inlineCallbacks
     def test_write_supported_by_default(self):
-        b = FilesystemSynchronousBackend(self.temp_dir)
+        b = FilesystemSynchronousBackend(self.temp_dir.path)
         writer = yield b.get_writer('dir/bar')
         self.assertTrue(IWriter.providedBy(writer))
 
     def test_read_unsupported(self):
-        b = FilesystemSynchronousBackend(self.temp_dir, can_read=False)
+        b = FilesystemSynchronousBackend(self.temp_dir.path, can_read=False)
         return self.assertFailure(b.get_reader('dir/foo'), Unsupported)
 
     def test_write_unsupported(self):
-        b = FilesystemSynchronousBackend(self.temp_dir, can_write=False)
+        b = FilesystemSynchronousBackend(self.temp_dir.path, can_write=False)
         return self.assertFailure(b.get_writer('dir/bar'), Unsupported)
 
     def test_insecure_reader(self):
-        b = FilesystemSynchronousBackend(self.temp_dir)
+        b = FilesystemSynchronousBackend(self.temp_dir.path)
         return self.assertFailure(
             b.get_reader('../foo'), AccessViolation)
 
     def test_insecure_writer(self):
-        b = FilesystemSynchronousBackend(self.temp_dir)
+        b = FilesystemSynchronousBackend(self.temp_dir.path)
         return self.assertFailure(
             b.get_writer('../foo'), AccessViolation)
 
     def tearDown(self):
-        shutil.rmtree(self.temp_dir)
+        shutil.rmtree(self.temp_dir.path)
 
 
 class Reader(unittest.TestCase):
