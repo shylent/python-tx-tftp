@@ -21,29 +21,30 @@ line3
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.existing_file_name = os.path.join(self.temp_dir, 'foo')
+        self.existing_file_name = os.path.join(self.temp_dir, 'dir', 'foo')
+        os.mkdir(os.path.dirname(self.existing_file_name))
         with open(self.existing_file_name, 'w') as f:
             f.write(self.test_data)
 
     @inlineCallbacks
     def test_read_supported_by_default(self):
         b = FilesystemSynchronousBackend(self.temp_dir)
-        reader = yield b.get_reader('foo')
+        reader = yield b.get_reader('dir/foo')
         self.assertTrue(IReader.providedBy(reader))
 
     @inlineCallbacks
     def test_write_supported_by_default(self):
         b = FilesystemSynchronousBackend(self.temp_dir)
-        writer = yield b.get_writer('bar')
+        writer = yield b.get_writer('dir/bar')
         self.assertTrue(IWriter.providedBy(writer))
 
     def test_read_unsupported(self):
         b = FilesystemSynchronousBackend(self.temp_dir, can_read=False)
-        return self.assertFailure(b.get_reader('foo'), Unsupported)
+        return self.assertFailure(b.get_reader('dir/foo'), Unsupported)
 
     def test_write_unsupported(self):
         b = FilesystemSynchronousBackend(self.temp_dir, can_write=False)
-        return self.assertFailure(b.get_writer('bar'), Unsupported)
+        return self.assertFailure(b.get_writer('dir/bar'), Unsupported)
 
     def test_insecure_reader(self):
         b = FilesystemSynchronousBackend(self.temp_dir)

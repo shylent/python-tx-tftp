@@ -267,7 +267,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_read:
             raise Unsupported("Reading not supported")
         try:
-            target_path = self.base.child(file_name)
+            target_path = self.base.descendant(file_name.split("/"))
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemReader(target_path)
@@ -283,7 +283,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_write:
             raise Unsupported("Writing not supported")
         try:
-            target_path = self.base.child(file_name)
+            target_path = self.base.descendant(file_name.split("/"))
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemWriter(target_path)
