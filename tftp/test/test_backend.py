@@ -54,6 +54,20 @@ line3
         return self.assertFailure(
             b.get_writer('../foo'), AccessViolation)
 
+    @inlineCallbacks
+    def test_read_ignores_leading_and_trailing_slashes(self):
+        b = FilesystemSynchronousBackend(self.temp_dir.path)
+        reader = yield b.get_reader('/dir/foo/')
+        segments_from_root = reader.file_path.segmentsFrom(self.temp_dir)
+        self.assertEqual(["dir", "foo"], segments_from_root)
+
+    @inlineCallbacks
+    def test_write_ignores_leading_and_trailing_slashes(self):
+        b = FilesystemSynchronousBackend(self.temp_dir.path)
+        writer = yield b.get_writer('/dir/bar/')
+        segments_from_root = writer.file_path.segmentsFrom(self.temp_dir)
+        self.assertEqual(["dir", "bar"], segments_from_root)
+
     def tearDown(self):
         shutil.rmtree(self.temp_dir.path)
 
