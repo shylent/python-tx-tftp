@@ -125,11 +125,18 @@ line3
     def setUp(self):
         self.temp_dir = FilePath(tempfile.mkdtemp())
         self.existing_file_name = self.temp_dir.child('foo')
-        with self.existing_file_name.open('w') as f:
-            f.write(self.test_data)
+        self.existing_file_name.setContent(self.test_data)
 
     def test_write_existing_file(self):
         self.assertRaises(FileExists, FilesystemWriter, self.temp_dir.child('foo'))
+
+    def test_write_to_non_existent_directory(self):
+        new_directory = self.temp_dir.child("new")
+        new_file = new_directory.child("baz")
+        self.assertFalse(new_directory.exists())
+        FilesystemWriter(new_file).finish()
+        self.assertTrue(new_directory.exists())
+        self.assertTrue(new_file.exists())
 
     def test_finished_write(self):
         w = FilesystemWriter(self.temp_dir.child('bar'))
