@@ -5,6 +5,7 @@ from tftp.backend import (FilesystemSynchronousBackend, FilesystemReader,
     FilesystemWriter, IReader, IWriter)
 from tftp.errors import Unsupported, AccessViolation, FileNotFound, FileExists
 from twisted.python.filepath import FilePath
+from twisted.internet.defer import inlineCallbacks
 from twisted.trial import unittest
 import os.path
 import shutil
@@ -24,13 +25,17 @@ line3
         with open(self.existing_file_name, 'w') as f:
             f.write(self.test_data)
 
+    @inlineCallbacks
     def test_read_supported_by_default(self):
         b = FilesystemSynchronousBackend(self.temp_dir)
-        return b.get_reader('foo').addCallback(IReader.providedBy)
+        reader = yield b.get_reader('foo')
+        self.assertTrue(IReader.providedBy(reader))
 
+    @inlineCallbacks
     def test_write_supported_by_default(self):
         b = FilesystemSynchronousBackend(self.temp_dir)
-        return b.get_writer('bar').addCallback(IWriter.providedBy)
+        writer = yield b.get_writer('bar')
+        self.assertTrue(IWriter.providedBy(writer))
 
     def test_read_unsupported(self):
         b = FilesystemSynchronousBackend(self.temp_dir, can_read=False)
