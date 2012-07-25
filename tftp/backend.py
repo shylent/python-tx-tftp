@@ -3,7 +3,7 @@
 '''
 from os import fstat
 from tftp.errors import Unsupported, FileExists, AccessViolation, FileNotFound
-from twisted.internet.defer import succeed
+from tftp.util import deferred
 from twisted.python.filepath import FilePath, InsecurePath
 import shutil
 import tempfile
@@ -256,6 +256,7 @@ class FilesystemSynchronousBackend(object):
             self.base = FilePath(base_path)
         self.can_read, self.can_write = can_read, can_write
 
+    @deferred
     def get_reader(self, file_name):
         """
         @see: L{IBackend.get_reader}
@@ -269,9 +270,9 @@ class FilesystemSynchronousBackend(object):
             target_path = self.base.child(file_name)
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
-        reader = FilesystemReader(target_path)
-        return succeed(reader)
+        return FilesystemReader(target_path)
 
+    @deferred
     def get_writer(self, file_name):
         """
         @see: L{IBackend.get_writer}
@@ -285,5 +286,4 @@ class FilesystemSynchronousBackend(object):
             target_path = self.base.child(file_name)
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
-        writer = FilesystemWriter(target_path)
-        return succeed(writer)
+        return FilesystemWriter(target_path)
