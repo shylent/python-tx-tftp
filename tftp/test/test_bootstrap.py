@@ -135,14 +135,14 @@ class TestOptionProcessing(unittest.TestCase):
         self.s = MockSession()
         opts = self.proto.processOptions(OrderedDict({'tsize':'foo'}))
         self.proto.applyOptions(self.s, opts)
-        self.assertIsNone(self.s.tsize)
+        self.assertTrue(self.s.tsize is None)
         self.assertEqual(opts, OrderedDict({}))
 
     def test_tsize_ignored_when_less_than_zero(self):
         self.s = MockSession()
         opts = self.proto.processOptions(OrderedDict({'tsize':'-1'}))
         self.proto.applyOptions(self.s, opts)
-        self.assertIsNone(self.s.tsize)
+        self.assertTrue(self.s.tsize is None)
         self.assertEqual(opts, OrderedDict({}))
 
     def test_multiple_options(self):
@@ -403,7 +403,7 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.assertIsInstance(self.ws.session, WriteSession)
         # Options are not applied to the WriteSession until the first DATA
         # datagram is received,
-        self.assertIsNone(self.ws.session.tsize)
+        self.assertTrue(self.ws.session.tsize is None)
         self.ws.datagramReceived(
             DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
         # The tsize option has been applied to the WriteSession.

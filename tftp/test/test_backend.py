@@ -95,7 +95,7 @@ line3
     def test_size_when_reader_finished(self):
         r = FilesystemReader(self.temp_dir.child('foo'))
         r.finish()
-        self.assertIsNone(r.size)
+        self.assertTrue(r.size is None)
 
     def test_size_when_file_removed(self):
         # FilesystemReader.size uses fstat() to discover the file's size, so
