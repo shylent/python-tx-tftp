@@ -34,6 +34,7 @@ class WriteSession(DatagramProtocol):
 
     block_size = 512
     timeout = (1, 3, 7)
+    tsize = None
 
     def __init__(self, writer, _clock=None):
         self.writer = writer
@@ -124,6 +125,9 @@ class WriteSession(DatagramProtocol):
         if len(datagram.data) < self.block_size:
             self.completed = True
             self.writer.finish()
+            # TODO: If self.tsize is not None, compare it with the actual
+            # count of bytes written. Log if there's a mismatch. Should it
+            # also emit an error datagram?
 
     def blockWriteFailure(self, failure):
         """Write failed"""

@@ -1,7 +1,9 @@
 '''
 @author: shylent
 '''
+from os import fstat
 from tftp.errors import Unsupported, FileExists, AccessViolation, FileNotFound
+from tftp.util import deferred
 from twisted.python.filepath import FilePath, InsecurePath
 import shutil
 import tempfile
@@ -32,7 +34,7 @@ class IBackend(interface.Interface):
         @raise BackendError: for any other errors, that were encountered while
         attempting to construct a reader
 
-        @return: an object, that provides L{IReader}
+        @return: a L{Deferred} that will fire with an L{IReader}
 
         """
 
@@ -55,12 +57,15 @@ class IBackend(interface.Interface):
         @raise BackendError: for any other errors, that were encountered while
         attempting to construct a writer
 
-        @return: an object, that provides L{IWriter}
+        @return: a L{Deferred} that will fire with an L{IWriter}
 
         """
 
 class IReader(interface.Interface):
     """An object, that performs reads on request of the TFTP protocol"""
+
+    size = interface.Attribute(
+        "The size of the file to be read, or C{None} if it's not known.")
 
     def read(size):
         """Attempt to read C{size} number of bytes.
@@ -129,6 +134,17 @@ class FilesystemReader(object):
         except IOError:
             raise FileNotFound(self.file_path)
         self.state = 'active'
+
+    @property
+    def size(self):
+        """
+        @see: L{IReader.size}
+
+        """
+        if self.file_obj.closed:
+            return None
+        else:
+            return fstat(self.file_obj.fileno()).st_size
 
     def read(self, size):
         """
@@ -240,12 +256,12 @@ class FilesystemSynchronousBackend(object):
             self.base = FilePath(base_path)
         self.can_read, self.can_write = can_read, can_write
 
+    @deferred
     def get_reader(self, file_name):
         """
         @see: L{IBackend.get_reader}
 
-        @return: an object, providing L{IReader}
-        @rtype: L{FilesystemReader}
+        @rtype: L{Deferred}, yielding a L{FilesystemReader}
 
         """
         if not self.can_read:
@@ -256,12 +272,12 @@ class FilesystemSynchronousBackend(object):
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemReader(target_path)
 
+    @deferred
     def get_writer(self, file_name):
         """
         @see: L{IBackend.get_writer}
 
-        @return: an object, providing L{IWriter}
-        @rtype: L{FilesystemWriter}
+        @rtype: L{Deferred}, yielding a L{FilesystemWriter}
 
         """
         if not self.can_write:

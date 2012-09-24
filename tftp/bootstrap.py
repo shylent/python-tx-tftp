@@ -46,7 +46,7 @@ class TFTPBootstrap(DatagramProtocol):
     @type backend: L{IReader} or L{IWriter} provider
 
     """
-    supported_options = ('blksize', 'timeout')
+    supported_options = ('blksize', 'timeout', 'tsize')
 
     def __init__(self, remote, backend, options=None, _clock=None):
         if options is None:
@@ -124,6 +124,25 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         return str(int_timeout)
 
+    def option_tsize(self, val):
+        """Process tsize interval option
+        (U{RFC2349<http://tools.ietf.org/html/rfc2349>}). Valid range is 0 and up.
+
+        @param val: value of the option
+        @type val: C{str}
+
+        @return: accepted option value or C{None}, if it is invalid
+        @rtype: C{str} or C{None}
+
+        """
+        try:
+            int_tsize = int(val)
+        except ValueError:
+            return None
+        if int_tsize < 0:
+            return None
+        return str(int_tsize)
+
     def applyOptions(self, session, options):
         """Apply given options mapping to the given L{WriteSession} or
         L{ReadSession} object.
@@ -141,6 +160,9 @@ class TFTPBootstrap(DatagramProtocol):
             elif opt_name == 'timeout':
                 timeout = int(opt_val)
                 session.timeout = (timeout,) * 3
+            elif opt_name == 'tsize':
+                tsize = int(opt_val)
+                session.tsize = tsize
 
     def datagramReceived(self, datagram, addr):
         if self.remote[1] != addr[1]:
@@ -327,6 +349,22 @@ class RemoteOriginReadSession(TFTPBootstrap):
     def __init__(self, remote, reader, options=None, _clock=None):
         TFTPBootstrap.__init__(self, remote, reader, options, _clock)
         self.session = ReadSession(reader, self._clock)
+
+    def option_tsize(self, val):
+        """Process tsize option.
+
+        If tsize is zero, get the size of the file to be read so that it can
+        be returned in the OACK datagram.
+
+        @see: L{TFTPBootstrap.option_tsize}
+
+        """
+        val = TFTPBootstrap.option_tsize(self, val)
+        if val == str(0):
+            val = self.session.reader.size
+            if val is not None:
+                val = str(val)
+        return val
 
     def startProtocol(self):
         """Start sending an OACK datagram if we were initialized with options

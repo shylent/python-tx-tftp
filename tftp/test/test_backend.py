@@ -2,9 +2,10 @@
 @author: shylent
 '''
 from tftp.backend import (FilesystemSynchronousBackend, FilesystemReader,
-    FilesystemWriter)
+    FilesystemWriter, IReader, IWriter)
 from tftp.errors import Unsupported, AccessViolation, FileNotFound, FileExists
 from twisted.python.filepath import FilePath
+from twisted.internet.defer import inlineCallbacks
 from twisted.trial import unittest
 import os.path
 import shutil
@@ -24,21 +25,35 @@ line3
         with open(self.existing_file_name, 'w') as f:
             f.write(self.test_data)
 
-    def test_unsupported(self):
-        b = FilesystemSynchronousBackend(self.temp_dir, can_read=False)
-        self.assertRaises(Unsupported, b.get_reader, 'foo')
-        self.assert_(b.get_writer('bar'),
-                     "A writer should be dispatched")
-        b = FilesystemSynchronousBackend(self.temp_dir, can_write=False)
-        self.assertRaises(Unsupported, b.get_writer, 'bar')
-        self.assert_(b.get_reader('foo'),
-                     "A reader should be dispatched")
+    @inlineCallbacks
+    def test_read_supported_by_default(self):
+        b = FilesystemSynchronousBackend(self.temp_dir)
+        reader = yield b.get_reader('foo')
+        self.assertTrue(IReader.providedBy(reader))
 
-    def test_insecure(self):
+    @inlineCallbacks
+    def test_write_supported_by_default(self):
         b = FilesystemSynchronousBackend(self.temp_dir)
-        self.assertRaises(AccessViolation, b.get_reader, '../foo')
+        writer = yield b.get_writer('bar')
+        self.assertTrue(IWriter.providedBy(writer))
+
+    def test_read_unsupported(self):
+        b = FilesystemSynchronousBackend(self.temp_dir, can_read=False)
+        return self.assertFailure(b.get_reader('foo'), Unsupported)
+
+    def test_write_unsupported(self):
+        b = FilesystemSynchronousBackend(self.temp_dir, can_write=False)
+        return self.assertFailure(b.get_writer('bar'), Unsupported)
+
+    def test_insecure_reader(self):
         b = FilesystemSynchronousBackend(self.temp_dir)
-        self.assertRaises(AccessViolation, b.get_writer, '../foo')
+        return self.assertFailure(
+            b.get_reader('../foo'), AccessViolation)
+
+    def test_insecure_writer(self):
+        b = FilesystemSynchronousBackend(self.temp_dir)
+        return self.assertFailure(
+            b.get_writer('../foo'), AccessViolation)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
@@ -73,11 +88,28 @@ line3
                         "The file has been exhausted and should be in the closed state")
         self.assertEqual(ostring, self.test_data)
 
+    def test_size(self):
+        r = FilesystemReader(self.temp_dir.child('foo'))
+        self.assertEqual(len(self.test_data), r.size)
+
+    def test_size_when_reader_finished(self):
+        r = FilesystemReader(self.temp_dir.child('foo'))
+        r.finish()
+        self.assertIsNone(r.size)
+
+    def test_size_when_file_removed(self):
+        # FilesystemReader.size uses fstat() to discover the file's size, so
+        # the absence of the file does not matter.
+        r = FilesystemReader(self.temp_dir.child('foo'))
+        self.existing_file_name.remove()
+        self.assertEqual(len(self.test_data), r.size)
+
     def test_cancel(self):
         r = FilesystemReader(self.temp_dir.child('foo'))
         r.read(3)
         r.finish()
         self.failUnless(r.file_obj.closed,
+
             "The session has been finished, so the file object should be in the closed state")
         r.finish()
 

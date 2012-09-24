@@ -47,6 +47,7 @@ class MockHandshakeWatchdog(object):
 class MockSession(object):
     block_size = 512
     timeout = (1, 3, 5)
+    tsize = None
 
 # Testing implementation here, but if I don't, I'll have a TON of duplicate code
 class TestOptionProcessing(unittest.TestCase):
@@ -122,6 +123,27 @@ class TestOptionProcessing(unittest.TestCase):
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (1, 3, 5))
         self.assertEqual(opts, OrderedDict())
+
+    def test_tsize(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'tsize':'1'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertEqual(self.s.tsize, 1)
+        self.assertEqual(opts, OrderedDict({'tsize':'1'}))
+
+    def test_tsize_ignored_when_not_a_number(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'tsize':'foo'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertIsNone(self.s.tsize)
+        self.assertEqual(opts, OrderedDict({}))
+
+    def test_tsize_ignored_when_less_than_zero(self):
+        self.s = MockSession()
+        opts = self.proto.processOptions(OrderedDict({'tsize':'-1'}))
+        self.proto.applyOptions(self.s, opts)
+        self.assertIsNone(self.s.tsize)
+        self.assertEqual(opts, OrderedDict({}))
 
     def test_multiple_options(self):
         got_options = OrderedDict()
@@ -321,14 +343,18 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.target = FilePath(self.tmp_dir_path).child('foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
-        self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer,
-                                           options={'blksize':'9'}, _clock=self.clock)
+        self.options = OrderedDict()
+        self.options['blksize'] = '9'
+        self.options['tsize'] = '45'
+        self.ws = RemoteOriginWriteSession(
+            ('127.0.0.1', 65465), self.writer, options=self.options,
+            _clock=self.clock)
         self.ws.transport = self.transport
 
     def test_option_normal(self):
         self.ws.startProtocol()
         self.clock.advance(0.1)
-        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
         self.clock.advance(3)
         self.assertEqual(self.transport.value(), oack_datagram * 2)
@@ -351,7 +377,7 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
     def test_option_timeout(self):
         self.ws.startProtocol()
         self.clock.advance(0.1)
-        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
         self.failIf(self.transport.disconnecting)
 
@@ -366,6 +392,22 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
         self.failUnless(self.transport.disconnecting)
+
+    def test_option_tsize(self):
+        # A tsize option sent as part of a write session is recorded.
+        self.ws.startProtocol()
+        self.clock.advance(0.1)
+        oack_datagram = OACKDatagram(self.options).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
+        self.failIf(self.transport.disconnecting)
+        self.assertIsInstance(self.ws.session, WriteSession)
+        # Options are not applied to the WriteSession until the first DATA
+        # datagram is received,
+        self.assertIsNone(self.ws.session.tsize)
+        self.ws.datagramReceived(
+            DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+        # The tsize option has been applied to the WriteSession.
+        self.assertEqual(45, self.ws.session.tsize)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
@@ -529,14 +571,17 @@ anotherline"""
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
+        self.options = OrderedDict()
+        self.options['blksize'] = '9'
+        self.options['tsize'] = '34'
         self.rs = RemoteOriginReadSession(('127.0.0.1', 65465), self.reader,
-                                          options={'blksize':'9'}, _clock=self.clock)
+                                          options=self.options, _clock=self.clock)
         self.rs.transport = self.transport
 
     def test_option_normal(self):
         self.rs.startProtocol()
         self.clock.advance(0.1)
-        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
         self.clock.advance(3)
         self.assertEqual(self.transport.value(), oack_datagram * 2)
@@ -551,7 +596,7 @@ anotherline"""
     def test_option_timeout(self):
         self.rs.startProtocol()
         self.clock.advance(0.1)
-        oack_datagram = OACKDatagram({'blksize':'9'}).to_wire()
+        oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
         self.failIf(self.transport.disconnecting)
 
@@ -566,6 +611,19 @@ anotherline"""
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
         self.failUnless(self.transport.disconnecting)
+
+    def test_option_tsize(self):
+        # A tsize option of 0 sent as part of a read session prompts a tsize
+        # response with the actual size of the file.
+        self.options['tsize'] = '0'
+        self.rs.startProtocol()
+        self.clock.advance(0.1)
+        self.transport.clear()
+        self.clock.advance(3)
+        # The response contains the size of the test data.
+        self.options['tsize'] = str(len(self.test_data))
+        oack_datagram = OACKDatagram(self.options).to_wire()
+        self.assertEqual(self.transport.value(), oack_datagram)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)

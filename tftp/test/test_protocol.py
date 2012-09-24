@@ -1,7 +1,7 @@
 '''
 @author: shylent
 '''
-from tftp.backend import FilesystemSynchronousBackend
+from tftp.backend import FilesystemSynchronousBackend, IReader, IWriter
 from tftp.bootstrap import RemoteOriginWriteSession, RemoteOriginReadSession
 from tftp.datagram import (WRQDatagram, TFTPDatagramFactory, split_opcode,
     ERR_ILLEGAL_OP, RRQDatagram, ERR_ACCESS_VIOLATION, ERR_FILE_EXISTS,
@@ -72,12 +72,14 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         wrq_datagram = WRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(wrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ILLEGAL_OP)
 
         self.transport.clear()
         rrq_datagram = RRQDatagram('foobar', 'octet', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ILLEGAL_OP)
 
@@ -86,12 +88,14 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         wrq_datagram = WRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(wrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ACCESS_VIOLATION)
 
         self.transport.clear()
         rrq_datagram = RRQDatagram('foobar', 'octet', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_ACCESS_VIOLATION)
 
@@ -100,6 +104,7 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         wrq_datagram = WRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(wrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_FILE_EXISTS)
 
@@ -108,6 +113,7 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         rrq_datagram = RRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_FILE_NOT_FOUND)
 
@@ -116,12 +122,14 @@ class DispatchErrors(unittest.TestCase):
         tftp.transport = self.transport
         rrq_datagram = RRQDatagram('foobar', 'netascii', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_NOT_DEFINED)
 
         self.transport.clear()
         rrq_datagram = RRQDatagram('foobar', 'octet', {})
         tftp.datagramReceived(rrq_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.clock.advance(1)
         error_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(error_datagram.errorcode, ERR_NOT_DEFINED)
 
@@ -135,8 +143,15 @@ class DummyClient(DatagramProtocol):
 
 class TFTPWrapper(TFTP):
 
-    def datagramReceived(self, *args, **kwargs):
-        self.session = TFTP.datagramReceived(self, *args, **kwargs)
+    def _startSession(self, *args, **kwargs):
+        d = TFTP._startSession(self, *args, **kwargs)
+
+        def save_session(session):
+            self.session = session
+            return session
+
+        d.addCallback(save_session)
+        return d
 
 
 class SuccessfulDispatch(unittest.TestCase):
@@ -156,8 +171,8 @@ class SuccessfulDispatch(unittest.TestCase):
         self.client.transport.write(WRQDatagram('foobar', 'NetASCiI', {}).to_wire(), ('127.0.0.1', 1069))
         d = Deferred()
         def cb(ign):
-            self.failUnless(isinstance(self.tftp.session, RemoteOriginWriteSession))
-            self.failUnless(isinstance(self.tftp.session.backend, NetasciiReceiverProxy))
+            self.assertIsInstance(self.tftp.session, RemoteOriginWriteSession)
+            self.assertIsInstance(self.tftp.session.backend, NetasciiReceiverProxy)
             self.tftp.session.cancel()
         d.addCallback(cb)
         reactor.callLater(0.5, d.callback, None)
@@ -167,8 +182,8 @@ class SuccessfulDispatch(unittest.TestCase):
         self.client.transport.write(RRQDatagram('nonempty', 'NetASCiI', {}).to_wire(), ('127.0.0.1', 1069))
         d = Deferred()
         def cb(ign):
-            self.failUnless(isinstance(self.tftp.session, RemoteOriginReadSession))
-            self.failUnless(isinstance(self.tftp.session.backend, NetasciiSenderProxy))
+            self.assertIsInstance(self.tftp.session, RemoteOriginReadSession)
+            self.assertIsInstance(self.tftp.session.backend, NetasciiSenderProxy)
             self.tftp.session.cancel()
         d.addCallback(cb)
         reactor.callLater(0.5, d.callback, None)
@@ -177,3 +192,58 @@ class SuccessfulDispatch(unittest.TestCase):
     def tearDown(self):
         self.tftp.transport.stopListening()
         self.client.transport.stopListening()
+
+
+class FilesystemAsyncBackend(FilesystemSynchronousBackend):
+
+    def __init__(self, base_path, clock):
+        super(FilesystemAsyncBackend, self).__init__(
+            base_path, can_read=True, can_write=True)
+        self.clock = clock
+
+    def get_reader(self, file_name):
+        d_get = super(FilesystemAsyncBackend, self).get_reader(file_name)
+        d = Deferred()
+        # d_get has already fired, so don't chain d_get to d until later,
+        # otherwise d will be fired too early.
+        self.clock.callLater(0, d_get.chainDeferred, d)
+        return d
+
+    def get_writer(self, file_name):
+        d_get = super(FilesystemAsyncBackend, self).get_writer(file_name)
+        d = Deferred()
+        # d_get has already fired, so don't chain d_get to d until later,
+        # otherwise d will be fired too early.
+        self.clock.callLater(0, d_get.chainDeferred, d)
+        return d
+
+
+class SuccessfulAsyncDispatch(unittest.TestCase):
+
+    def setUp(self):
+        self.clock = Clock()
+        self.tmp_dir_path = tempfile.mkdtemp()
+        with FilePath(self.tmp_dir_path).child('nonempty').open('w') as fd:
+            fd.write('Something uninteresting')
+        self.backend = FilesystemAsyncBackend(self.tmp_dir_path, self.clock)
+        self.tftp = TFTP(self.backend, self.clock)
+
+    def test_get_reader_defers(self):
+        rrq_datagram = RRQDatagram('nonempty', 'NetASCiI', {})
+        rrq_addr = ('127.0.0.1', 1069)
+        rrq_mode = "octet"
+        d = self.tftp._startSession(rrq_datagram, rrq_addr, rrq_mode)
+        self.assertFalse(d.called)
+        self.clock.advance(1)
+        self.assertTrue(d.called)
+        self.assertTrue(IReader.providedBy(d.result.backend))
+
+    def test_get_writer_defers(self):
+        wrq_datagram = WRQDatagram('foobar', 'NetASCiI', {})
+        wrq_addr = ('127.0.0.1', 1069)
+        wrq_mode = "octet"
+        d = self.tftp._startSession(wrq_datagram, wrq_addr, wrq_mode)
+        self.assertFalse(d.called)
+        self.clock.advance(1)
+        self.assertTrue(d.called)
+        self.assertTrue(IWriter.providedBy(d.result.backend))
