@@ -194,6 +194,9 @@ class FilesystemWriter(object):
     def __init__(self, file_path):
         if file_path.exists():
             raise FileExists(file_path)
+        file_dir = file_path.parent()
+        if not file_dir.exists():
+            file_dir.makedirs()
         self.file_path = file_path
         self.destination_file = self.file_path.open('w')
         self.temp_destination = tempfile.TemporaryFile()
@@ -267,7 +270,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_read:
             raise Unsupported("Reading not supported")
         try:
-            target_path = self.base.child(file_name)
+            target_path = self.base.descendant(file_name.split("/"))
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemReader(target_path)
@@ -283,7 +286,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_write:
             raise Unsupported("Writing not supported")
         try:
-            target_path = self.base.child(file_name)
+            target_path = self.base.descendant(file_name.split("/"))
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemWriter(target_path)
