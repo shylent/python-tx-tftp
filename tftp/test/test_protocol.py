@@ -257,7 +257,7 @@ class CapturedContext(Exception):
 
     def __init__(self, args, names):
         super(CapturedContext, self).__init__(*args)
-        self.context = {name: context.get(name) for name in names}
+        self.context = dict((name, context.get(name)) for name in names)
 
 
 class ContextCapturingBackend(object):
