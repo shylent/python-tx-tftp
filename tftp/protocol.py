@@ -39,6 +39,12 @@ class TFTP(DatagramProtocol):
         datagram = TFTPDatagramFactory(*split_opcode(datagram))
         log.msg("Datagram received from %s: %s" % (addr, datagram))
 
+        if datagram.opcode not in (OP_WRQ, OP_RRQ):
+            log.msg(
+                "Datagram with unexpected opcode %s was received without establishing "
+                "the session. Ignoring." % datagram.opcode)
+            return
+
         mode = datagram.mode.lower()
         if datagram.mode not in ('netascii', 'octet'):
             return self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,

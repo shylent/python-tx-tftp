@@ -5,7 +5,7 @@ from tftp.backend import FilesystemSynchronousBackend, IReader, IWriter
 from tftp.bootstrap import RemoteOriginWriteSession, RemoteOriginReadSession
 from tftp.datagram import (WRQDatagram, TFTPDatagramFactory, split_opcode,
     ERR_ILLEGAL_OP, RRQDatagram, ERR_ACCESS_VIOLATION, ERR_FILE_EXISTS,
-    ERR_FILE_NOT_FOUND, ERR_NOT_DEFINED)
+    ERR_FILE_NOT_FOUND, ERR_NOT_DEFINED, ACKDatagram)
 from tftp.errors import (Unsupported, AccessViolation, FileExists, FileNotFound,
     BackendError)
 from tftp.netascii import NetasciiReceiverProxy, NetasciiSenderProxy
@@ -61,6 +61,14 @@ class DispatchErrors(unittest.TestCase):
         self.failIf(self.transport.disconnecting)
         self.failIf(self.transport.value())
     test_malformed_datagram.skip = 'Not done yet'
+
+    def test_non_rq_datagram(self):
+        tftp = TFTP(DummyBackend(), _clock=self.clock)
+        tftp.transport = self.transport
+        ack_datagram = ACKDatagram(14)
+        tftp.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 1111))
+        self.failIf(self.transport.disconnecting)
+        self.failIf(self.transport.value())
 
     def test_bad_mode(self):
         tftp = TFTP(DummyBackend(), _clock=self.clock)
