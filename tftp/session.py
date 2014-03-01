@@ -249,6 +249,9 @@ class ReadSession(DatagramProtocol):
         cycle.
 
         """
+        # reached maximum number of blocks. Rolling over
+        if self.blocknum == 65536:
+            self.blocknum = 0
         if len(data) < self.block_size:
             self.completed = True
         bytes = DATADatagram(self.blocknum, data).to_wire()

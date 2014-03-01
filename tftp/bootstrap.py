@@ -390,7 +390,7 @@ class RemoteOriginReadSession(TFTPBootstrap):
             return self.session.nextBlock()
 
     def _datagramReceived(self, datagram):
-        if datagram.opcode == OP_ACK and datagram.blocknum == 0:
+        if datagram.opcode == OP_ACK and datagram.blocknum == 0 and self.session.started is False:
             return self.tftp_ACK(datagram)
         elif self.session.started:
             return self.session.datagramReceived(datagram)
