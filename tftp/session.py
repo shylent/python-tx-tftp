@@ -9,7 +9,7 @@ from twisted.internet.defer import maybeDeferred
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
 
-MAX_BLOCK_SIZE = 1400
+MAX_BLOCK_SIZE = 8192
 
 
 class WriteSession(DatagramProtocol):
