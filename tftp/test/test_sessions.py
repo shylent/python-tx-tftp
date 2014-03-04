@@ -370,5 +370,12 @@ anotherline"""
         self.failUnless(isinstance(err_datagram, ERRORDatagram))
         self.failUnless(self.transport.disconnecting)
 
+    def test_rollover(self):
+        self.rs.block_size = len(self.test_data)
+        self.rs.blocknum = 65536
+        self.rs.dataFromReader(self.test_data)
+        self.assertEqual(self.rs.blocknum, 0)
+        self.addCleanup(self.rs.cancel)
+
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
