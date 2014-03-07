@@ -4,7 +4,7 @@
 from tftp.bootstrap import (LocalOriginWriteSession, LocalOriginReadSession,
     RemoteOriginReadSession, RemoteOriginWriteSession, TFTPBootstrap)
 from tftp.datagram import (ACKDatagram, TFTPDatagramFactory, split_opcode,
-    ERR_TID_UNKNOWN, DATADatagram, OACKDatagram)
+    ERR_TID_UNKNOWN, DATADatagram, OACKDatagram, OP_ACK)
 from tftp.test.test_sessions import DelayedWriter, FakeTransport, DelayedReader
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
@@ -551,6 +551,42 @@ anotherline"""
         data_datagram_2 = DATADatagram(2, self.test_data[5:10])
         self.assertEqual(self.transport.value(), data_datagram_2.to_wire())
         self.failIf(self.transport.disconnecting)
+        self.addCleanup(self.rs.cancel)
+
+    def test_remote_origin_read_session_not_started_rollover(self):
+        # if a rollover is done, we reach blocknum 0 again. But this time
+        # session is already started.
+        # Here we test the case where rollover has not happened yet
+
+        data_datagram = DATADatagram(1, self.test_data[:5])
+        data_datagram.opcode = OP_ACK
+        data_datagram.blocknum = 0
+        self.rs.session.block_size = 5
+        self.clock.pump((1,)*3)
+
+        self.rs.session.transport = "Fake"
+        self.rs.session.started = False
+        self.rs._datagramReceived(data_datagram)
+
+        self.assertEqual(self.rs.session.started, True)
+        self.assertEqual(self.rs.session.transport, self.rs.transport)
+
+        self.addCleanup(self.rs.cancel)
+
+    def test_remote_origin_read_session_started_rollover(self):
+        # if a rollover is done, we reach blocknum 0 again. But this time
+        # session is already started.
+        # Here we test the case where rollover has already happened
+        data_datagram = DATADatagram(1, self.test_data[:5])
+        data_datagram.opcode = OP_ACK
+        data_datagram.blocknum = 0
+        self.rs.session.block_size = 5
+        self.rs.startProtocol()
+        self.clock.pump((1,)*3)
+
+        self.assertEqual(
+            self.rs._datagramReceived(data_datagram),
+            self.rs.session.datagramReceived(data_datagram))
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
