@@ -1,6 +1,7 @@
 '''
 @author: shylent
 '''
+import struct
 from tftp.datagram import (split_opcode, WireProtocolError, TFTPDatagramFactory,
     RQDatagram, DATADatagram, ACKDatagram, ERRORDatagram, errors, OP_RRQ, OP_WRQ,
     OACKDatagram)
@@ -141,3 +142,10 @@ class ConcreteDatagrams(unittest.TestCase):
         self.assertEqual(dgram.errorcode, 3)
         self.assertEqual(dgram.errmsg, "Disk full or allocation exceeded")
         self.assertEqual(dgram.to_wire(), "\x00\x05\x00\x03Disk full or allocation exceeded\x00")
+
+    def test_error_codes(self):
+        # Error codes 0 to 8 are formally defined for TFTP (as of 2015-02-04).
+        for errorcode in range(0, 9):
+            data = struct.pack("!H", errorcode) + "message\x00"
+            dgram = ERRORDatagram.from_wire(data)
+            self.assertEqual(dgram.errorcode, errorcode)
