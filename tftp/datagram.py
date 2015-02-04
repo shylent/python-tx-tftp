@@ -22,6 +22,7 @@ ERR_ILLEGAL_OP = 4
 ERR_TID_UNKNOWN = 5
 ERR_FILE_EXISTS = 6
 ERR_NO_SUCH_USER = 7
+ERR_TERM_OPTION = 8
 
 errors = {
     ERR_NOT_DEFINED :       "",
@@ -31,8 +32,8 @@ errors = {
     ERR_ILLEGAL_OP :        "Illegal TFTP operation",
     ERR_TID_UNKNOWN :       "Unknown transfer ID",
     ERR_FILE_EXISTS :       "File already exists",
-    ERR_NO_SUCH_USER :      "No such user"
-
+    ERR_NO_SUCH_USER :      "No such user",
+    ERR_TERM_OPTION :       "Terminate transfer due to option negotiation",
 }
 
 def split_opcode(datagram):
