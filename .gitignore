@@ -1,7 +1,13 @@
 *.pyc
 *.pyo
 *~
+/.tox
 /_trial_temp
+/bin
+/dist
+/include
+/lib
+/local
 /TAGS
 /tags
 dropin.cache
