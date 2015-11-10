@@ -1,7 +1,7 @@
 '''
 @author: shylent
 '''
-from io import StringIO
+from io import BytesIO
 from tftp.netascii import (from_netascii, to_netascii, NetasciiReceiverProxy,
     NetasciiSenderProxy)
 from twisted.internet.defer import inlineCallbacks
@@ -87,8 +87,8 @@ line2
 line3
 """
     def setUp(self):
-        self.source = StringIO(to_netascii(self.test_data))
-        self.sink = StringIO()
+        self.source = BytesIO(to_netascii(self.test_data))
+        self.sink = BytesIO()
 
     @inlineCallbacks
     def test_conversion(self):
@@ -128,8 +128,8 @@ line2
 line3
 """
     def setUp(self):
-        self.source = StringIO(self.test_data)
-        self.sink = StringIO()
+        self.source = BytesIO(self.test_data)
+        self.sink = BytesIO()
 
     @inlineCallbacks
     def test_conversion_normal(self):
