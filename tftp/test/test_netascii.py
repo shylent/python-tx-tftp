@@ -50,8 +50,8 @@ class ToNetascii(unittest.TestCase):
 
     def test_lf_newline(self):
         tftp.netascii.NL = b'\x0a'
-        tftp.netascii.re_to_netascii = re.compile(tftp.netascii._re_to_netascii %
-                                                  tftp.netascii.NL)
+        tftp.netascii.re_to_netascii = re.compile(
+            tftp.netascii._re_to_netascii.replace(b"NL", tftp.netascii.NL))
         self.assertEqual(to_netascii(b'\x0d'), b'\x0d\x00')
         self.assertEqual(to_netascii(b'\x0a'), b'\x0d\x0a')
         self.assertEqual(to_netascii(b'\x0a\x0d'), b'\x0d\x0a\x0d\x00')
@@ -59,8 +59,8 @@ class ToNetascii(unittest.TestCase):
 
     def test_cr_newline(self):
         tftp.netascii.NL = b'\x0d'
-        tftp.netascii.re_to_netascii = re.compile(tftp.netascii._re_to_netascii %
-                                                  tftp.netascii.NL)
+        tftp.netascii.re_to_netascii = re.compile(
+            tftp.netascii._re_to_netascii.replace(b"NL", tftp.netascii.NL))
         self.assertEqual(to_netascii(b'\x0d'), b'\x0d\x0a')
         self.assertEqual(to_netascii(b'\x0a'), b'\x0a')
         self.assertEqual(to_netascii(b'\x0d\x0a'), b'\x0d\x0a\x0a')
@@ -68,8 +68,8 @@ class ToNetascii(unittest.TestCase):
 
     def test_crlf_newline(self):
         tftp.netascii.NL = b'\x0d\x0a'
-        tftp.netascii.re_to_netascii = re.compile(tftp.netascii._re_to_netascii %
-                                                  tftp.netascii.NL)
+        tftp.netascii.re_to_netascii = re.compile(
+            tftp.netascii._re_to_netascii.replace(b"NL", tftp.netascii.NL))
         self.assertEqual(to_netascii(b'\x0d\x0a'), b'\x0d\x0a')
         self.assertEqual(to_netascii(b'\x0d'), b'\x0d\x00')
         self.assertEqual(to_netascii(b'\x0d\x0a\x0d'), b'\x0d\x0a\x0d\x00')
@@ -82,7 +82,7 @@ class ToNetascii(unittest.TestCase):
 
 class ReceiverProxy(unittest.TestCase):
 
-    test_data = """line1
+    test_data = b"""line1
 line2
 line3
 """
@@ -123,7 +123,7 @@ line3
 
 class SenderProxy(unittest.TestCase):
 
-    test_data = """line1
+    test_data = b"""line1
 line2
 line3
 """

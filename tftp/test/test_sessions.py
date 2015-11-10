@@ -248,7 +248,7 @@ class WriteSessions(unittest.TestCase):
 
 
 class ReadSessions(unittest.TestCase):
-    test_data = """line1
+    test_data = b"""line1
 line2
 anotherline"""
     port = 65466

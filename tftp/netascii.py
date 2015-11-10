@@ -18,7 +18,12 @@ CRLF = CR + LF
 NUL = b'\x00'
 CRNUL = CR + NUL
 
-NL = os.linesep
+# os.linesep is a byte string on Python 2 but a Unicode string on Python 3,
+# but we always want a byte string.
+if isinstance(os.linesep, bytes):
+    NL = os.linesep
+else:
+    NL = os.linesep.encode("ascii")
 
 
 re_from_netascii = re.compile(b'(\x0d\x0a|\x0d\x00)')
@@ -36,9 +41,11 @@ def from_netascii(data):
     """
     return re_from_netascii.sub(_convert_from_netascii, data)
 
-# So that I can easily switch the NL around in tests
-_re_to_netascii = b'(%s|\x0d)'
-re_to_netascii = re.compile(_re_to_netascii % NL)
+# So that I can easily switch the NL around in tests. This is done with
+# replace(...) rather than interpolation because Python 3 prior to 3.5 lacks
+# interpolation/formatting of byte strings.
+_re_to_netascii = b'(NL|\x0d)'
+re_to_netascii = re.compile(_re_to_netascii.replace(b"NL", NL))
 
 def _convert_to_netascii(match_obj):
     if match_obj.group(0) == NL:

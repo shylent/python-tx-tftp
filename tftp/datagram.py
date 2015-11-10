@@ -25,15 +25,15 @@ ERR_NO_SUCH_USER = 7
 ERR_TERM_OPTION = 8
 
 errors = {
-    ERR_NOT_DEFINED :       "",
-    ERR_FILE_NOT_FOUND  :   "File not found",
-    ERR_ACCESS_VIOLATION :  "Access violation",
-    ERR_DISK_FULL :         "Disk full or allocation exceeded",
-    ERR_ILLEGAL_OP :        "Illegal TFTP operation",
-    ERR_TID_UNKNOWN :       "Unknown transfer ID",
-    ERR_FILE_EXISTS :       "File already exists",
-    ERR_NO_SUCH_USER :      "No such user",
-    ERR_TERM_OPTION :       "Terminate transfer due to option negotiation",
+    ERR_NOT_DEFINED :       b"",
+    ERR_FILE_NOT_FOUND  :   b"File not found",
+    ERR_ACCESS_VIOLATION :  b"Access violation",
+    ERR_DISK_FULL :         b"Disk full or allocation exceeded",
+    ERR_ILLEGAL_OP :        b"Illegal TFTP operation",
+    ERR_TID_UNKNOWN :       b"Unknown transfer ID",
+    ERR_FILE_EXISTS :       b"File already exists",
+    ERR_NO_SUCH_USER :      b"No such user",
+    ERR_TERM_OPTION :       b"Terminate transfer due to option negotiation",
 }
 
 def split_opcode(datagram):
@@ -53,6 +53,19 @@ def split_opcode(datagram):
         return struct.unpack(b"!H", datagram[:2])[0], datagram[2:]
     except struct.error:
         raise WireProtocolError("Failed to extract the opcode")
+
+
+def assert_options_are_byte_strings(options):
+    """Assert that all names and values in C{options} are C{bytes}.
+
+    @type options: C{dict}
+    """
+    if __debug__:
+        for name, value in options.items():
+            assert isinstance(name, bytes), (
+                "%s (%s) is not a byte string" % (name, type(name)))
+            assert isinstance(value, bytes), (
+                "%s (%s) is not a byte string" % (value, type(value)))
 
 
 class TFTPDatagram(object):
@@ -132,6 +145,9 @@ class RQDatagram(TFTPDatagram):
         return cls(filename, mode, options)
 
     def __init__(self, filename, mode, options):
+        assert isinstance(filename, bytes)
+        assert isinstance(mode, bytes)
+        assert_options_are_byte_strings(options)
         self.filename = filename
         self.mode = mode.lower()
         self.options = options
@@ -192,6 +208,7 @@ class OACKDatagram(TFTPDatagram):
         return cls(options)
 
     def __init__(self, options):
+        assert_options_are_byte_strings(options)
         self.options = options
 
     def __repr__(self):
@@ -237,6 +254,7 @@ class DATADatagram(TFTPDatagram):
         return cls(blocknum, data)
 
     def __init__(self, blocknum, data):
+        assert isinstance(data, bytes)
         self.blocknum = blocknum
         self.data = data
 
@@ -349,10 +367,12 @@ class ERRORDatagram(TFTPDatagram):
             raise InvalidErrorcodeError(errorcode)
         if errmsg is None:
             errmsg = errors[errorcode]
+        assert isinstance(errmsg, bytes)
         return cls(errorcode, errmsg)
 
 
     def __init__(self, errorcode, errmsg):
+        assert isinstance(errmsg, bytes)
         self.errorcode = errorcode
         self.errmsg = errmsg
 

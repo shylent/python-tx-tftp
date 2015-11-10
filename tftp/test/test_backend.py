@@ -12,7 +12,7 @@ import tempfile
 
 
 class BackendSelection(unittest.TestCase):
-    test_data = """line1
+    test_data = b"""line1
 line2
 line3
 """
@@ -73,7 +73,7 @@ line3
 
 
 class Reader(unittest.TestCase):
-    test_data = """line1
+    test_data = b"""line1
 line2
 line3
 """
@@ -131,7 +131,7 @@ line3
 
 
 class Writer(unittest.TestCase):
-    test_data = """line1
+    test_data = b"""line1
 line2
 line3
 """

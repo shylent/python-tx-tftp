@@ -60,7 +60,7 @@ class DispatchErrors(unittest.TestCase):
         tftp.datagramReceived(b'foobar', ('127.0.0.1', 1111))
         self.assertFalse(self.transport.disconnecting)
         self.assertFalse(self.transport.value())
-    test_malformed_datagram.skip = b'Not done yet'
+    test_malformed_datagram.skip = 'Not done yet'
 
     def test_bad_mode(self):
         tftp = TFTP(DummyBackend(), _clock=self.clock)

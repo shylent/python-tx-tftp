@@ -5,11 +5,12 @@ from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN,
     TFTPDatagramFactory, split_opcode, OP_OACK, OP_ERROR, OACKDatagram, OP_ACK,
     OP_DATA)
 from tftp.session import WriteSession, MAX_BLOCK_SIZE, ReadSession
-from tftp.util import SequentialCall
+from tftp.util import SequentialCall, int_to_byte_string
 from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
 from twisted.python.util import OrderedDict
+
 
 class TFTPBootstrap(DatagramProtocol):
     """Base class for TFTP Bootstrap classes, classes, that handle initial datagram
@@ -78,7 +79,8 @@ class TFTPBootstrap(DatagramProtocol):
         for name, val in options.items():
             norm_name = name.lower()
             if norm_name in self.supported_options:
-                actual_value = getattr(self, b'option_' + norm_name)(val)
+                actual_value = getattr(
+                    self, 'option_' + norm_name.decode("ascii"))(val)
                 if actual_value is not None:
                     accepted_options[name] = actual_value
         return accepted_options
@@ -102,7 +104,7 @@ class TFTPBootstrap(DatagramProtocol):
         if int_blksize < 8 or int_blksize > 65464:
             return None
         int_blksize = min((int_blksize, MAX_BLOCK_SIZE))
-        return str(int_blksize)
+        return int_to_byte_string(int_blksize)
 
     def option_timeout(self, val):
         """Process timeout interval option
@@ -122,7 +124,7 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         if int_timeout < 1 or int_timeout > 255:
             return None
-        return str(int_timeout)
+        return int_to_byte_string(int_timeout)
 
     def option_tsize(self, val):
         """Process tsize interval option
@@ -141,7 +143,7 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         if int_tsize < 0:
             return None
-        return str(int_tsize)
+        return int_to_byte_string(int_tsize)
 
     def applyOptions(self, session, options):
         """Apply given options mapping to the given L{WriteSession} or
@@ -362,10 +364,10 @@ class RemoteOriginReadSession(TFTPBootstrap):
 
         """
         val = TFTPBootstrap.option_tsize(self, val)
-        if val == str(0):
+        if val == b"0":
             val = self.session.reader.size
             if val is not None:
-                val = str(val)
+                val = int_to_byte_string(val)
         return val
 
     def startProtocol(self):
