@@ -65,7 +65,7 @@ class TFTP(DatagramProtocol):
             elif datagram.opcode == OP_RRQ:
                 fs_interface = yield call(
                     context, self.backend.get_reader, datagram.filename)
-        except Unsupported, e:
+        except Unsupported as e:
             self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
                                     str(e)).to_wire(), addr)
         except AccessViolation:
@@ -74,7 +74,7 @@ class TFTP(DatagramProtocol):
             self.transport.write(ERRORDatagram.from_code(ERR_FILE_EXISTS).to_wire(), addr)
         except FileNotFound:
             self.transport.write(ERRORDatagram.from_code(ERR_FILE_NOT_FOUND).to_wire(), addr)
-        except BackendError, e:
+        except BackendError as e:
             self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, str(e)).to_wire(), addr)
         else:
             if datagram.opcode == OP_WRQ:

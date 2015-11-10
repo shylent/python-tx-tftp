@@ -146,7 +146,7 @@ class RQDatagram(TFTPDatagram):
     def to_wire(self):
         opcode = struct.pack(b"!H", self.opcode)
         if self.options:
-            options = b'\x00'.join(chain.from_iterable(self.options.iteritems()))
+            options = b'\x00'.join(chain.from_iterable(self.options.items()))
             return b''.join((opcode, self.filename, b'\x00', self.mode, b'\x00',
                             options, b'\x00'))
         else:
@@ -200,7 +200,7 @@ class OACKDatagram(TFTPDatagram):
     def to_wire(self):
         opcode = struct.pack(b"!H", self.opcode)
         if self.options:
-            options = b'\x00'.join(chain.from_iterable(self.options.iteritems()))
+            options = b'\x00'.join(chain.from_iterable(self.options.items()))
             return b''.join((opcode, options, b'\x00'))
         else:
             return opcode

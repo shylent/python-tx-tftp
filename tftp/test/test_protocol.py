@@ -58,8 +58,8 @@ class DispatchErrors(unittest.TestCase):
     def test_malformed_datagram(self):
         tftp = TFTP(BackendFactory(), _clock=self.clock)
         tftp.datagramReceived(b'foobar', ('127.0.0.1', 1111))
-        self.failIf(self.transport.disconnecting)
-        self.failIf(self.transport.value())
+        self.assertFalse(self.transport.disconnecting)
+        self.assertFalse(self.transport.value())
     test_malformed_datagram.skip = b'Not done yet'
 
     def test_bad_mode(self):

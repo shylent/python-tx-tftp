@@ -1,7 +1,7 @@
 '''
 @author: shylent
 '''
-from cStringIO import StringIO
+from io import StringIO
 from tftp.netascii import (from_netascii, to_netascii, NetasciiReceiverProxy,
     NetasciiSenderProxy)
 from twisted.internet.defer import inlineCallbacks
@@ -143,7 +143,7 @@ line3
             # If a terminating chunk (len < blocknum) was already sent, there should
             # be no more data (means, we can only yield empty lines from now on)
             if last_chunk and chunk:
-                print "LEN: %s" % len(chunk)
+                print("LEN: %s" % len(chunk))
                 self.fail("Last chunk (with len < blocksize) was already yielded, "
                           "but there is more data.")
             if len(chunk) < 5:
@@ -164,7 +164,7 @@ line3
             # If a terminating chunk (len < blocknum) was already sent, there should
             # be no more data (means, we can only yield empty lines from now on)
             if last_chunk and chunk:
-                print "LEN: %s" % len(chunk)
+                print("LEN: %s" % len(chunk))
                 self.fail("Last chunk (with len < blocksize) was already yielded, "
                           "but there is more data.")
             if len(chunk) < 1:
@@ -185,7 +185,7 @@ line3
             # If a terminating chunk (len < blocknum) was already sent, there should
             # be no more data (means, we can only yield empty lines from now on)
             if last_chunk and chunk:
-                print "LEN: %s" % len(chunk)
+                print("LEN: %s" % len(chunk))
                 self.fail("Last chunk (with len < blocksize) was already yielded, "
                           "but there is more data.")
             if len(chunk) < 2:

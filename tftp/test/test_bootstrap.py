@@ -154,7 +154,7 @@ class TestOptionProcessing(unittest.TestCase):
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (123, 123, 123))
         self.assertEqual(self.s.block_size, 1024)
-        self.assertEqual(opts.items(), got_options.items())
+        self.assertEqual(list(opts.items()), list(got_options.items()))
 
         got_options = OrderedDict()
         got_options[b'blksize'] = b'1024'
@@ -164,7 +164,7 @@ class TestOptionProcessing(unittest.TestCase):
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (123, 123, 123))
         self.assertEqual(self.s.block_size, 1024)
-        self.assertEqual(opts.items(), got_options.items())
+        self.assertEqual(list(opts.items()), list(got_options.items()))
 
         got_options = OrderedDict()
         got_options[b'blksize'] = b'1024'
@@ -178,7 +178,7 @@ class TestOptionProcessing(unittest.TestCase):
         actual_options = OrderedDict()
         actual_options[b'blksize'] = b'1024'
         actual_options[b'timeout'] = b'123'
-        self.assertEqual(opts.items(), actual_options.items())
+        self.assertEqual(list(opts.items()), list(actual_options.items()))
 
 
 class BootstrapLocalOriginWrite(unittest.TestCase):
@@ -209,8 +209,8 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
     def test_local_origin_write_session_handshake_timeout(self):
         self.ws.startProtocol()
         self.clock.advance(5)
-        self.failIf(self.transport.value())
-        self.failUnless(self.transport.disconnecting)
+        self.assertFalse(self.transport.value())
+        self.assertTrue(self.transport.disconnecting)
 
     def test_local_origin_write_session_handshake_success(self):
         self.ws.session.block_size = 6
@@ -220,8 +220,8 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.ws.datagramReceived(data_datagram.to_wire(), ('127.0.0.1', 65465))
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
-        self.failIf(self.transport.disconnecting)
-        self.failIf(self.wd.active())
+        self.assertFalse(self.transport.disconnecting)
+        self.assertFalse(self.wd.active())
         self.addCleanup(self.ws.cancel)
 
     def tearDown(self):
@@ -260,7 +260,7 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
         self.transport.clear()
         self.ws.datagramReceived(DATADatagram(1, b'foobarbaz').to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(3)
-        self.failUnless(self.ws.session.started)
+        self.assertTrue(self.ws.session.started)
         self.clock.advance(0.1)
         self.assertEqual(self.ws.session.block_size, 9)
         self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
@@ -281,7 +281,7 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
     def test_option_timeout(self):
         self.ws.startProtocol()
         self.clock.advance(5)
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(self.transport.disconnecting)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
@@ -313,7 +313,7 @@ class BootstrapRemoteOriginWrite(unittest.TestCase):
         ack_datagram_0 = ACKDatagram(0)
         self.clock.advance(0.1)
         self.assertEqual(self.transport.value(), ack_datagram_0.to_wire())
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         # Normal exchange
         self.transport.clear()
@@ -323,7 +323,7 @@ class BootstrapRemoteOriginWrite(unittest.TestCase):
             ack_datagram_1 = ACKDatagram(1)
             self.assertEqual(self.transport.value(), ack_datagram_1.to_wire())
             self.assertEqual(self.target.open('r').read(), b'foobar')
-            self.failIf(self.transport.disconnecting)
+            self.assertFalse(self.transport.disconnecting)
             self.addCleanup(self.ws.cancel)
         d.addCallback(cb)
         self.clock.advance(3)
@@ -372,26 +372,26 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.clock.pump((1,)*10)
         self.writer.finish()
         self.assertEqual(self.writer.file_path.open('r').read(), b'foobarbazsmthng')
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(self.transport.disconnecting)
 
     def test_option_timeout(self):
         self.ws.startProtocol()
         self.clock.advance(0.1)
         oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         self.clock.advance(3)
         self.assertEqual(self.transport.value(), oack_datagram * 2)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(self.transport.disconnecting)
 
     def test_option_tsize(self):
         # A tsize option sent as part of a write session is recorded.
@@ -399,7 +399,7 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.clock.advance(0.1)
         oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
         self.assertIsInstance(self.ws.session, WriteSession)
         # Options are not applied to the WriteSession until the first DATA
         # datagram is received,
@@ -443,17 +443,17 @@ anotherline"""
 
     def test_local_origin_read_session_handshake_timeout(self):
         self.clock.advance(5)
-        self.failIf(self.transport.value())
-        self.failUnless(self.transport.disconnecting)
+        self.assertFalse(self.transport.value())
+        self.assertTrue(self.transport.disconnecting)
 
     def test_local_origin_read_session_handshake_success(self):
         self.clock.advance(1)
         ack_datagram = ACKDatagram(0)
         self.rs.datagramReceived(ack_datagram.to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(2)
-        self.failUnless(self.transport.value())
-        self.failIf(self.transport.disconnecting)
-        self.failIf(self.wd.active())
+        self.assertTrue(self.transport.value())
+        self.assertFalse(self.transport.disconnecting)
+        self.assertFalse(self.wd.active())
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
@@ -501,7 +501,7 @@ anotherline"""
     def test_local_origin_read_option_timeout(self):
         self.rs.startProtocol()
         self.clock.advance(5)
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(self.transport.disconnecting)
 
     def tearDown(self):
         shutil.rmtree(self.tmp_dir_path)
@@ -542,7 +542,7 @@ anotherline"""
         data_datagram_1 = DATADatagram(1, self.test_data[:5])
 
         self.assertEqual(self.transport.value(), data_datagram_1.to_wire())
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         # Normal exchange continues
         self.transport.clear()
@@ -550,7 +550,7 @@ anotherline"""
         self.clock.pump((1,)*3)
         data_datagram_2 = DATADatagram(2, self.test_data[5:10])
         self.assertEqual(self.transport.value(), data_datagram_2.to_wire())
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
         self.addCleanup(self.rs.cancel)
 
     def test_remote_origin_read_session_not_started_rollover(self):
@@ -634,19 +634,19 @@ anotherline"""
         self.clock.advance(0.1)
         oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         self.clock.advance(3)
         self.assertEqual(self.transport.value(), oack_datagram * 2)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
 
         self.clock.advance(2)
         self.assertEqual(self.transport.value(), oack_datagram * 3)
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(self.transport.disconnecting)
 
     def test_option_tsize(self):
         # A tsize option of 0 sent as part of a read session prompts a tsize

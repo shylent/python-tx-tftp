@@ -97,7 +97,7 @@ line3
         self.assertEqual(r.read(3), b'')
         self.assertEqual(r.read(5), b'')
         self.assertEqual(r.read(7), b'')
-        self.failUnless(r.file_obj.closed,
+        self.assertTrue(r.file_obj.closed,
                         b"The file has been exhausted and should be in the closed state")
         self.assertEqual(ostring, self.test_data)
 
@@ -121,7 +121,7 @@ line3
         r = FilesystemReader(self.temp_dir.child(b'foo'))
         r.read(3)
         r.finish()
-        self.failUnless(r.file_obj.closed,
+        self.assertTrue(r.file_obj.closed,
 
             "The session has been finished, so the file object should be in the closed state")
         r.finish()
@@ -163,7 +163,7 @@ line3
         w = FilesystemWriter(self.temp_dir.child(b'bar'))
         w.write(self.test_data)
         w.cancel()
-        self.failIf(self.temp_dir.child(b'bar').exists(),
+        self.assertFalse(self.temp_dir.child(b'bar').exists(),
                     "If a write is cancelled, the file should not be left behind")
 
     def tearDown(self):

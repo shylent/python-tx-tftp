@@ -98,7 +98,7 @@ class SequentialCall(object):
         if self._spent:
             raise Spent("This SequentialCall has already timed out")
         try:
-            next_timeout = self._timeout.next()
+            next_timeout = next(self._timeout)
             self._wd = self._clock.callLater(next_timeout, self._call_and_schedule)
         except StopIteration:
             self.on_timeout(*self.on_timeout_args, **self.on_timeout_kwargs)

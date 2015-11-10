@@ -75,7 +75,7 @@ class TFTPBootstrap(DatagramProtocol):
 
         """
         accepted_options = OrderedDict()
-        for name, val in options.iteritems():
+        for name, val in options.items():
             norm_name = name.lower()
             if norm_name in self.supported_options:
                 actual_value = getattr(self, b'option_' + norm_name)(val)
@@ -154,7 +154,7 @@ class TFTPBootstrap(DatagramProtocol):
         @type options: L{OrderedDict<twisted.python.util.OrderedDict>}
 
         """
-        for opt_name, opt_val in options.iteritems():
+        for opt_name, opt_val in options.items():
             if opt_name == b'blksize':
                 session.block_size = int(opt_val)
             elif opt_name == b'timeout':
