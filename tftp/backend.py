@@ -113,6 +113,7 @@ class IWriter(interface.Interface):
         """Tell this writer, that the transfer has ended unsuccessfully"""
 
 
+@interface.implementer(IReader)
 class FilesystemReader(object):
     """A reader to go with L{FilesystemSynchronousBackend}.
 
@@ -124,8 +125,6 @@ class FilesystemReader(object):
     @raise FileNotFound: if the file does not exist
 
     """
-
-    interface.implements(IReader)
 
     def __init__(self, file_path):
         self.file_path = file_path
@@ -172,6 +171,7 @@ class FilesystemReader(object):
         self.state = 'finished'
 
 
+@interface.implementer(IWriter)
 class FilesystemWriter(object):
     """A writer to go with L{FilesystemSynchronousBackend}.
 
@@ -188,8 +188,6 @@ class FilesystemWriter(object):
     @raise FileExists: if the file already exists
 
     """
-
-    interface.implements(IWriter)
 
     def __init__(self, file_path):
         if file_path.exists():
@@ -233,6 +231,7 @@ class FilesystemWriter(object):
             self.state = 'cancelled'
 
 
+@interface.implementer(IBackend)
 class FilesystemSynchronousBackend(object):
     """A synchronous filesystem backend.
 
@@ -249,8 +248,6 @@ class FilesystemSynchronousBackend(object):
     @type can_write: C{bool}
 
     """
-
-    interface.implements(IBackend)
 
     def __init__(self, base_path, can_read=True, can_write=True):
         try:

@@ -51,8 +51,8 @@ class DelayedWriter(FilesystemWriter):
         return d
 
 
+@interface.implementer(IReader)
 class FailingReader(object):
-    interface.implements(IReader)
 
     size = None
 
@@ -63,8 +63,8 @@ class FailingReader(object):
         pass
 
 
+@interface.implementer(IWriter)
 class FailingWriter(object):
-    interface.implements(IWriter)
 
     def write(self, data):
         raise IOError("I fail")
