@@ -64,91 +64,91 @@ class TestOptionProcessing(unittest.TestCase):
 
     def test_blksize(self):
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'blksize':'8'}))
+        opts = self.proto.processOptions(OrderedDict({b'blksize':b'8'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.block_size, 8)
-        self.assertEqual(opts, OrderedDict({'blksize':'8'}))
+        self.assertEqual(opts, OrderedDict({b'blksize':b'8'}))
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'blksize':'foo'}))
+        opts = self.proto.processOptions(OrderedDict({b'blksize':b'foo'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.block_size, 512)
         self.assertEqual(opts, OrderedDict())
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'blksize':'65464'}))
+        opts = self.proto.processOptions(OrderedDict({b'blksize':b'65464'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.block_size, MAX_BLOCK_SIZE)
-        self.assertEqual(opts, OrderedDict({'blksize':str(MAX_BLOCK_SIZE)}))
+        self.assertEqual(opts, OrderedDict({b'blksize':str(MAX_BLOCK_SIZE)}))
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'blksize':'65465'}))
+        opts = self.proto.processOptions(OrderedDict({b'blksize':b'65465'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.block_size, 512)
         self.assertEqual(opts, OrderedDict())
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'blksize':'7'}))
+        opts = self.proto.processOptions(OrderedDict({b'blksize':b'7'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.block_size, 512)
         self.assertEqual(opts, OrderedDict())
 
     def test_timeout(self):
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'timeout':'1'}))
+        opts = self.proto.processOptions(OrderedDict({b'timeout':b'1'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (1, 1, 1))
-        self.assertEqual(opts, OrderedDict({'timeout':'1'}))
+        self.assertEqual(opts, OrderedDict({b'timeout':b'1'}))
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'timeout':'foo'}))
+        opts = self.proto.processOptions(OrderedDict({b'timeout':b'foo'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (1, 3, 5))
         self.assertEqual(opts, OrderedDict())
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'timeout':'0'}))
+        opts = self.proto.processOptions(OrderedDict({b'timeout':b'0'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (1, 3, 5))
         self.assertEqual(opts, OrderedDict())
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'timeout':'255'}))
+        opts = self.proto.processOptions(OrderedDict({b'timeout':b'255'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (255, 255, 255))
-        self.assertEqual(opts, OrderedDict({'timeout':'255'}))
+        self.assertEqual(opts, OrderedDict({b'timeout':b'255'}))
 
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'timeout':'256'}))
+        opts = self.proto.processOptions(OrderedDict({b'timeout':b'256'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (1, 3, 5))
         self.assertEqual(opts, OrderedDict())
 
     def test_tsize(self):
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'tsize':'1'}))
+        opts = self.proto.processOptions(OrderedDict({b'tsize':b'1'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.tsize, 1)
-        self.assertEqual(opts, OrderedDict({'tsize':'1'}))
+        self.assertEqual(opts, OrderedDict({b'tsize':b'1'}))
 
     def test_tsize_ignored_when_not_a_number(self):
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'tsize':'foo'}))
+        opts = self.proto.processOptions(OrderedDict({b'tsize':b'foo'}))
         self.proto.applyOptions(self.s, opts)
         self.assertTrue(self.s.tsize is None)
         self.assertEqual(opts, OrderedDict({}))
 
     def test_tsize_ignored_when_less_than_zero(self):
         self.s = MockSession()
-        opts = self.proto.processOptions(OrderedDict({'tsize':'-1'}))
+        opts = self.proto.processOptions(OrderedDict({b'tsize':b'-1'}))
         self.proto.applyOptions(self.s, opts)
         self.assertTrue(self.s.tsize is None)
         self.assertEqual(opts, OrderedDict({}))
 
     def test_multiple_options(self):
         got_options = OrderedDict()
-        got_options['timeout'] = '123'
-        got_options['blksize'] = '1024'
+        got_options[b'timeout'] = b'123'
+        got_options[b'blksize'] = b'1024'
         self.s = MockSession()
         opts = self.proto.processOptions(got_options)
         self.proto.applyOptions(self.s, opts)
@@ -157,8 +157,8 @@ class TestOptionProcessing(unittest.TestCase):
         self.assertEqual(opts.items(), got_options.items())
 
         got_options = OrderedDict()
-        got_options['blksize'] = '1024'
-        got_options['timeout'] = '123'
+        got_options[b'blksize'] = b'1024'
+        got_options[b'timeout'] = b'123'
         self.s = MockSession()
         opts = self.proto.processOptions(got_options)
         self.proto.applyOptions(self.s, opts)
@@ -167,17 +167,17 @@ class TestOptionProcessing(unittest.TestCase):
         self.assertEqual(opts.items(), got_options.items())
 
         got_options = OrderedDict()
-        got_options['blksize'] = '1024'
-        got_options['foobar'] = 'barbaz'
-        got_options['timeout'] = '123'
+        got_options[b'blksize'] = b'1024'
+        got_options[b'foobar'] = b'barbaz'
+        got_options[b'timeout'] = b'123'
         self.s = MockSession()
         opts = self.proto.processOptions(got_options)
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.timeout, (123, 123, 123))
         self.assertEqual(self.s.block_size, 1024)
         actual_options = OrderedDict()
-        actual_options['blksize'] = '1024'
-        actual_options['timeout'] = '123'
+        actual_options[b'blksize'] = b'1024'
+        actual_options[b'timeout'] = b'123'
         self.assertEqual(opts.items(), actual_options.items())
 
 
@@ -188,7 +188,7 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
@@ -216,7 +216,7 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.ws.session.block_size = 6
         self.ws.startProtocol()
         self.clock.advance(1)
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         self.ws.datagramReceived(data_datagram.to_wire(), ('127.0.0.1', 65465))
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
@@ -234,11 +234,11 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer,
-                                          options={'blksize':'123'}, _clock=self.clock)
+                                          options={b'blksize':b'123'}, _clock=self.clock)
         self.wd = MockHandshakeWatchdog(4, self.ws.timedOut, _clock=self.clock)
         self.ws.timeout_watchdog = self.wd
         self.ws.transport = self.transport
@@ -246,19 +246,19 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
 
     def test_option_normal(self):
         self.ws.startProtocol()
-        self.ws.datagramReceived(OACKDatagram({'blksize':'12'}).to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(OACKDatagram({b'blksize':b'12'}).to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
         self.assertEqual(self.ws.session.block_size, WriteSession.block_size)
         self.assertEqual(self.transport.value(), ACKDatagram(0).to_wire())
 
         self.transport.clear()
-        self.ws.datagramReceived(OACKDatagram({'blksize':'9'}).to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(OACKDatagram({b'blksize':b'9'}).to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
         self.assertEqual(self.ws.session.block_size, WriteSession.block_size)
         self.assertEqual(self.transport.value(), ACKDatagram(0).to_wire())
 
         self.transport.clear()
-        self.ws.datagramReceived(DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(DATADatagram(1, b'foobarbaz').to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(3)
         self.failUnless(self.ws.session.started)
         self.clock.advance(0.1)
@@ -266,14 +266,14 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
         self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
 
         self.transport.clear()
-        self.ws.datagramReceived(DATADatagram(2, 'asdfghjkl').to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(DATADatagram(2, b'asdfghjkl').to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(3)
         self.assertEqual(self.transport.value(), ACKDatagram(2).to_wire())
         self.writer.finish()
-        self.assertEqual(self.writer.file_path.open('r').read(), 'foobarbazasdfghjkl')
+        self.assertEqual(self.writer.file_path.open('r').read(), b'foobarbazasdfghjkl')
 
         self.transport.clear()
-        self.ws.datagramReceived(OACKDatagram({'blksize':'12'}).to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(OACKDatagram({b'blksize':b'12'}).to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
         self.assertEqual(self.ws.session.block_size, 9)
         self.assertEqual(self.transport.value(), ACKDatagram(0).to_wire())
@@ -293,7 +293,7 @@ class BootstrapRemoteOriginWrite(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
@@ -317,12 +317,12 @@ class BootstrapRemoteOriginWrite(unittest.TestCase):
 
         # Normal exchange
         self.transport.clear()
-        d = self.ws.datagramReceived(DATADatagram(1, 'foobar').to_wire(), ('127.0.0.1', 65465))
+        d = self.ws.datagramReceived(DATADatagram(1, b'foobar').to_wire(), ('127.0.0.1', 65465))
         def cb(res):
             self.clock.advance(0.1)
             ack_datagram_1 = ACKDatagram(1)
             self.assertEqual(self.transport.value(), ack_datagram_1.to_wire())
-            self.assertEqual(self.target.open('r').read(), 'foobar')
+            self.assertEqual(self.target.open('r').read(), b'foobar')
             self.failIf(self.transport.disconnecting)
             self.addCleanup(self.ws.cancel)
         d.addCallback(cb)
@@ -340,12 +340,12 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.options = OrderedDict()
-        self.options['blksize'] = '9'
-        self.options['tsize'] = '45'
+        self.options[b'blksize'] = b'9'
+        self.options[b'tsize'] = b'45'
         self.ws = RemoteOriginWriteSession(
             ('127.0.0.1', 65465), self.writer, options=self.options,
             _clock=self.clock)
@@ -360,18 +360,18 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.assertEqual(self.transport.value(), oack_datagram * 2)
 
         self.transport.clear()
-        self.ws.datagramReceived(DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(DATADatagram(1, b'foobarbaz').to_wire(), ('127.0.0.1', 65465))
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
         self.assertEqual(self.ws.session.block_size, 9)
 
         self.transport.clear()
-        self.ws.datagramReceived(DATADatagram(2, 'smthng').to_wire(), ('127.0.0.1', 65465))
+        self.ws.datagramReceived(DATADatagram(2, b'smthng').to_wire(), ('127.0.0.1', 65465))
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), ACKDatagram(2).to_wire())
         self.clock.pump((1,)*10)
         self.writer.finish()
-        self.assertEqual(self.writer.file_path.open('r').read(), 'foobarbazsmthng')
+        self.assertEqual(self.writer.file_path.open('r').read(), b'foobarbazsmthng')
         self.failUnless(self.transport.disconnecting)
 
     def test_option_timeout(self):
@@ -405,7 +405,7 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         # datagram is received,
         self.assertTrue(self.ws.session.tsize is None)
         self.ws.datagramReceived(
-            DATADatagram(1, 'foobarbaz').to_wire(), ('127.0.0.1', 65465))
+            DATADatagram(1, b'foobarbaz').to_wire(), ('127.0.0.1', 65465))
         # The tsize option has been applied to the WriteSession.
         self.assertEqual(45, self.ws.session.tsize)
 
@@ -422,7 +422,7 @@ anotherline"""
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -434,7 +434,7 @@ anotherline"""
         self.rs.startProtocol()
 
     def test_invalid_tid(self):
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         self.rs.datagramReceived(data_datagram, ('127.0.0.1', 11111))
         self.clock.advance(0.1)
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
@@ -469,7 +469,7 @@ anotherline"""
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -481,13 +481,13 @@ anotherline"""
 
     def test_option_normal(self):
         self.rs.startProtocol()
-        self.rs.datagramReceived(OACKDatagram({'blksize':'9'}).to_wire(), ('127.0.0.1', 65465))
+        self.rs.datagramReceived(OACKDatagram({b'blksize':b'9'}).to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
         self.assertEqual(self.rs.session.block_size, 9)
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), DATADatagram(1, self.test_data[:9]).to_wire())
 
-        self.rs.datagramReceived(OACKDatagram({'blksize':'12'}).to_wire(), ('127.0.0.1', 65465))
+        self.rs.datagramReceived(OACKDatagram({b'blksize':b'12'}).to_wire(), ('127.0.0.1', 65465))
         self.clock.advance(0.1)
         self.assertEqual(self.rs.session.block_size, 9)
 
@@ -516,7 +516,7 @@ anotherline"""
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -527,7 +527,7 @@ anotherline"""
     @inlineCallbacks
     def test_invalid_tid(self):
         self.rs.startProtocol()
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         yield self.rs.datagramReceived(data_datagram, ('127.0.0.1', 11111))
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(err_dgram.errorcode, ERR_TID_UNKNOWN)
@@ -564,7 +564,7 @@ anotherline"""
         self.rs.session.block_size = 5
         self.clock.pump((1,)*3)
 
-        self.rs.session.transport = "Fake"
+        self.rs.session.transport = b"Fake"
         self.rs.session.started = False
         self.rs._datagramReceived(data_datagram)
 
@@ -602,14 +602,14 @@ anotherline"""
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.options = OrderedDict()
-        self.options['blksize'] = '9'
-        self.options['tsize'] = '34'
+        self.options[b'blksize'] = b'9'
+        self.options[b'tsize'] = b'34'
         self.rs = RemoteOriginReadSession(('127.0.0.1', 65465), self.reader,
                                           options=self.options, _clock=self.clock)
         self.rs.transport = self.transport
@@ -651,13 +651,13 @@ anotherline"""
     def test_option_tsize(self):
         # A tsize option of 0 sent as part of a read session prompts a tsize
         # response with the actual size of the file.
-        self.options['tsize'] = '0'
+        self.options[b'tsize'] = b'0'
         self.rs.startProtocol()
         self.clock.advance(0.1)
         self.transport.clear()
         self.clock.advance(3)
         # The response contains the size of the test data.
-        self.options['tsize'] = str(len(self.test_data))
+        self.options[b'tsize'] = str(len(self.test_data))
         oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
 

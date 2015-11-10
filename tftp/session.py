@@ -84,12 +84,12 @@ class WriteSession(DatagramProtocol):
         elif datagram.blocknum == next_blocknum:
             if self.completed:
                 self.transport.write(ERRORDatagram.from_code(
-                    ERR_ILLEGAL_OP, "Transfer already finished").to_wire())
+                    ERR_ILLEGAL_OP, b"Transfer already finished").to_wire())
             else:
                 return self.nextBlock(datagram)
         else:
             self.transport.write(ERRORDatagram.from_code(
-                ERR_ILLEGAL_OP, "Block number mismatch").to_wire())
+                ERR_ILLEGAL_OP, b"Block number mismatch").to_wire())
 
     def nextBlock(self, datagram):
         """Handle fresh data, attempt to write it to backend
@@ -232,7 +232,7 @@ class ReadSession(DatagramProtocol):
                 return self.nextBlock()
         else:
             self.transport.write(ERRORDatagram.from_code(
-                ERR_ILLEGAL_OP, "Block number mismatch").to_wire())
+                ERR_ILLEGAL_OP, b"Block number mismatch").to_wire())
 
     def nextBlock(self):
         """ACK datagram for the previous block has been received. Attempt to read
@@ -265,7 +265,7 @@ class ReadSession(DatagramProtocol):
     def readFailed(self, fail):
         """The reader reported an error. Notify the remote end and cancel the transfer"""
         log.err(fail)
-        self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, "Read failed").to_wire())
+        self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, b"Read failed").to_wire())
         self.cancel()
 
     def timedOut(self):

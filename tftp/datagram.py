@@ -50,7 +50,7 @@ def split_opcode(datagram):
     """
 
     try:
-        return struct.unpack("!H", datagram[:2])[0], datagram[2:]
+        return struct.unpack(b"!H", datagram[:2])[0], datagram[2:]
     except struct.error:
         raise WireProtocolError("Failed to extract the opcode")
 
@@ -113,7 +113,7 @@ class RQDatagram(TFTPDatagram):
         Fields are terminated by NUL.
 
         """
-        parts = payload.split('\x00')
+        parts = payload.split(b'\x00')
         try:
             filename, mode = parts.pop(0), parts.pop(0)
         except IndexError:
@@ -144,13 +144,13 @@ class RQDatagram(TFTPDatagram):
                                                self.filename, self.mode)
 
     def to_wire(self):
-        opcode = struct.pack("!H", self.opcode)
+        opcode = struct.pack(b"!H", self.opcode)
         if self.options:
-            options = '\x00'.join(chain.from_iterable(self.options.iteritems()))
-            return ''.join((opcode, self.filename, '\x00', self.mode, '\x00',
-                            options, '\x00'))
+            options = b'\x00'.join(chain.from_iterable(self.options.iteritems()))
+            return b''.join((opcode, self.filename, b'\x00', self.mode, b'\x00',
+                            options, b'\x00'))
         else:
-            return ''.join((opcode, self.filename, '\x00', self.mode, '\x00'))
+            return b''.join((opcode, self.filename, b'\x00', self.mode, b'\x00'))
 
 class RRQDatagram(RQDatagram):
     opcode = OP_RRQ
@@ -178,7 +178,7 @@ class OACKDatagram(TFTPDatagram):
         @raise OptionsDecodeError: if we failed to decode the options
 
         """
-        parts = payload.split('\x00')
+        parts = payload.split(b'\x00')
         #FIXME: Boo, code duplication
         if parts and not parts[-1]:
             parts.pop(-1)
@@ -198,10 +198,10 @@ class OACKDatagram(TFTPDatagram):
         return ("<%s(options=%s)>" % (self.__class__.__name__, self.options))
 
     def to_wire(self):
-        opcode = struct.pack("!H", self.opcode)
+        opcode = struct.pack(b"!H", self.opcode)
         if self.options:
-            options = '\x00'.join(chain.from_iterable(self.options.iteritems()))
-            return ''.join((opcode, options, '\x00'))
+            options = b'\x00'.join(chain.from_iterable(self.options.iteritems()))
+            return b''.join((opcode, options, b'\x00'))
         else:
             return opcode
 
@@ -231,7 +231,7 @@ class DATADatagram(TFTPDatagram):
 
         """
         try:
-            blocknum, data = struct.unpack('!H', payload[:2])[0], payload[2:]
+            blocknum, data = struct.unpack(b'!H', payload[:2])[0], payload[2:]
         except struct.error:
             raise PayloadDecodeError()
         return cls(blocknum, data)
@@ -245,7 +245,7 @@ class DATADatagram(TFTPDatagram):
                                                         self.blocknum, len(self.data))
 
     def to_wire(self):
-        return ''.join((struct.pack('!HH', self.opcode, self.blocknum), self.data))
+        return b''.join((struct.pack(b'!HH', self.opcode, self.blocknum), self.data))
 
 class ACKDatagram(TFTPDatagram):
     """An ACK datagram.
@@ -270,7 +270,7 @@ class ACKDatagram(TFTPDatagram):
 
         """
         try:
-            blocknum = struct.unpack('!H', payload)[0]
+            blocknum = struct.unpack(b'!H', payload)[0]
         except struct.error:
             raise PayloadDecodeError("Unable to extract the block number")
         return cls(blocknum)
@@ -282,7 +282,7 @@ class ACKDatagram(TFTPDatagram):
         return "<%s(blocknum=%s)>" % (self.__class__.__name__, self.blocknum)
 
     def to_wire(self):
-        return struct.pack('!HH', self.opcode, self.blocknum)
+        return struct.pack(b'!HH', self.opcode, self.blocknum)
 
 class ERRORDatagram(TFTPDatagram):
     """An ERROR datagram.
@@ -317,12 +317,12 @@ class ERRORDatagram(TFTPDatagram):
 
         """
         try:
-            errorcode = struct.unpack('!H', payload[:2])[0]
+            errorcode = struct.unpack(b'!H', payload[:2])[0]
         except struct.error:
             raise PayloadDecodeError("Unable to extract the error code")
         if not errorcode in errors:
             raise InvalidErrorcodeError(errorcode)
-        errmsg = payload[2:].split('\x00')[0]
+        errmsg = payload[2:].split(b'\x00')[0]
         if not errmsg:
             errmsg = errors[errorcode]
         return cls(errorcode, errmsg)
@@ -357,8 +357,8 @@ class ERRORDatagram(TFTPDatagram):
         self.errmsg = errmsg
 
     def to_wire(self):
-        return ''.join((struct.pack('!HH', self.opcode, self.errorcode),
-                        self.errmsg, '\x00'))
+        return b''.join((struct.pack(b'!HH', self.opcode, self.errorcode),
+                        self.errmsg, b'\x00'))
 
 class _TFTPDatagramFactory(object):
     """Encapsulates the creation of datagrams based on the opcode"""

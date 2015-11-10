@@ -46,7 +46,7 @@ class TFTPBootstrap(DatagramProtocol):
     @type backend: L{IReader} or L{IWriter} provider
 
     """
-    supported_options = ('blksize', 'timeout', 'tsize')
+    supported_options = (b'blksize', b'timeout', b'tsize')
 
     def __init__(self, remote, backend, options=None, _clock=None):
         if options is None:
@@ -78,7 +78,7 @@ class TFTPBootstrap(DatagramProtocol):
         for name, val in options.iteritems():
             norm_name = name.lower()
             if norm_name in self.supported_options:
-                actual_value = getattr(self, 'option_' + norm_name)(val)
+                actual_value = getattr(self, b'option_' + norm_name)(val)
                 if actual_value is not None:
                     accepted_options[name] = actual_value
         return accepted_options
@@ -155,12 +155,12 @@ class TFTPBootstrap(DatagramProtocol):
 
         """
         for opt_name, opt_val in options.iteritems():
-            if opt_name == 'blksize':
+            if opt_name == b'blksize':
                 session.block_size = int(opt_val)
-            elif opt_name == 'timeout':
+            elif opt_name == b'timeout':
                 timeout = int(opt_val)
                 session.timeout = (timeout,) * 3
-            elif opt_name == 'tsize':
+            elif opt_name == b'tsize':
                 tsize = int(opt_val)
                 session.tsize = tsize
 

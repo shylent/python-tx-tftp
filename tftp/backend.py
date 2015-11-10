@@ -155,7 +155,7 @@ class FilesystemReader(object):
 
         """
         if self.state in ('eof', 'finished'):
-            return ''
+            return b''
         data = self.file_obj.read(size)
         if not data:
             self.state = 'eof'
@@ -270,7 +270,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_read:
             raise Unsupported("Reading not supported")
         try:
-            target_path = self.base.descendant(file_name.split("/"))
+            target_path = self.base.descendant(file_name.split(b"/"))
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemReader(target_path)
@@ -286,7 +286,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_write:
             raise Unsupported("Writing not supported")
         try:
-            target_path = self.base.descendant(file_name.split("/"))
+            target_path = self.base.descendant(file_name.split(b"/"))
         except InsecurePath, e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemWriter(target_path)

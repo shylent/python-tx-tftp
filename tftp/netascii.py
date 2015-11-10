@@ -12,16 +12,16 @@ import re
 __all__ = ['NetasciiSenderProxy', 'NetasciiReceiverProxy',
            'to_netascii', 'from_netascii']
 
-CR = '\x0d'
-LF = '\x0a'
+CR = b'\x0d'
+LF = b'\x0a'
 CRLF = CR + LF
-NUL = '\x00'
+NUL = b'\x00'
 CRNUL = CR + NUL
 
 NL = os.linesep
 
 
-re_from_netascii = re.compile('(\x0d\x0a|\x0d\x00)')
+re_from_netascii = re.compile(b'(\x0d\x0a|\x0d\x00)')
 
 def _convert_from_netascii(match_obj):
     if match_obj.group(0) == CRLF:
@@ -37,7 +37,7 @@ def from_netascii(data):
     return re_from_netascii.sub(_convert_from_netascii, data)
 
 # So that I can easily switch the NL around in tests
-_re_to_netascii = '(%s|\x0d)'
+_re_to_netascii = b'(%s|\x0d)'
 re_to_netascii = re.compile(_re_to_netascii % NL)
 
 def _convert_to_netascii(match_obj):
@@ -104,7 +104,7 @@ class NetasciiSenderProxy(object):
 
     def __init__(self, reader):
         self.reader = reader
-        self.buffer = ''
+        self.buffer = b''
 
     def read(self, size):
         """Attempt to read C{size} bytes, transforming them as described in

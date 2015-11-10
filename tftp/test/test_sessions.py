@@ -90,7 +90,7 @@ class WriteSessions(unittest.TestCase):
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = WriteSession(self.writer, _clock=self.clock)
@@ -99,7 +99,7 @@ class WriteSessions(unittest.TestCase):
         self.ws.startProtocol()
 
     def test_ERROR(self):
-        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, 'no reason')
+        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, b'no reason')
         self.ws.datagramReceived(err_dgram)
         self.clock.advance(0.1)
         self.failIf(self.transport.value())
@@ -109,7 +109,7 @@ class WriteSessions(unittest.TestCase):
     def test_DATA_stale_blocknum(self):
         self.ws.block_size = 6
         self.ws.blocknum = 2
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         yield self.ws.datagramReceived(data_datagram)
         self.writer.finish()
         self.failIf(self.target.open('r').read())
@@ -121,7 +121,7 @@ class WriteSessions(unittest.TestCase):
     @inlineCallbacks
     def test_DATA_invalid_blocknum(self):
         self.ws.block_size = 6
-        data_datagram = DATADatagram(3, 'foobar')
+        data_datagram = DATADatagram(3, b'foobar')
         yield self.ws.datagramReceived(data_datagram)
         self.writer.finish()
         self.failIf(self.target.open('r').read())
@@ -132,7 +132,7 @@ class WriteSessions(unittest.TestCase):
 
     def test_DATA(self):
         self.ws.block_size = 6
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.advance(0.1)
@@ -143,7 +143,7 @@ class WriteSessions(unittest.TestCase):
             self.assertEqual(ack_dgram.blocknum, 1)
             self.failIf(self.ws.completed,
                         "Data length is equal to blocksize, no reason to stop")
-            data_datagram = DATADatagram(2, 'barbaz')
+            data_datagram = DATADatagram(2, b'barbaz')
 
             self.transport.clear()
             d = self.ws.datagramReceived(data_datagram)
@@ -166,11 +166,11 @@ class WriteSessions(unittest.TestCase):
         self.ws.block_size = 6
 
         # Send a terminating datagram
-        data_datagram = DATADatagram(1, 'foo')
+        data_datagram = DATADatagram(1, b'foo')
         d = self.ws.datagramReceived(data_datagram)
         def cb(res):
             self.clock.advance(0.1)
-            self.assertEqual(self.target.open('r').read(), 'foo')
+            self.assertEqual(self.target.open('r').read(), b'foo')
             ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
             self.failUnless(isinstance(ack_dgram, ACKDatagram))
             self.failUnless(self.ws.completed,
@@ -178,9 +178,9 @@ class WriteSessions(unittest.TestCase):
             self.transport.clear()
 
             # Send another datagram after the transfer is considered complete
-            data_datagram = DATADatagram(2, 'foobar')
+            data_datagram = DATADatagram(2, b'foobar')
             self.ws.datagramReceived(data_datagram)
-            self.assertEqual(self.target.open('r').read(), 'foo')
+            self.assertEqual(self.target.open('r').read(), b'foo')
             err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
             self.failUnless(isinstance(err_dgram, ERRORDatagram))
 
@@ -195,7 +195,7 @@ class WriteSessions(unittest.TestCase):
     def test_DATA_backoff(self):
         self.ws.block_size = 5
 
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.advance(0.1)
@@ -225,7 +225,7 @@ class WriteSessions(unittest.TestCase):
     def test_failed_write(self):
         self.writer.cancel()
         self.ws.writer = FailingWriter()
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         yield self.ws.datagramReceived(data_datagram)
         self.flushLoggedErrors()
         self.clock.advance(0.1)
@@ -234,7 +234,7 @@ class WriteSessions(unittest.TestCase):
         self.failUnless(self.transport.disconnecting)
 
     def test_time_out(self):
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.pump((1,)*13)
@@ -256,7 +256,7 @@ anotherline"""
     def setUp(self):
         self.clock = Clock()
         self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.target = FilePath(self.tmp_dir_path).child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -267,7 +267,7 @@ anotherline"""
 
     @inlineCallbacks
     def test_ERROR(self):
-        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, 'no reason')
+        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, b'no reason')
         yield self.rs.datagramReceived(err_dgram)
         self.failIf(self.transport.value())
         self.failUnless(self.transport.disconnecting)
@@ -300,7 +300,7 @@ anotherline"""
             self.clock.advance(0.1)
             self.failIf(self.transport.disconnecting)
             data_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-            self.assertEqual(data_datagram.data, 'line1')
+            self.assertEqual(data_datagram.data, b'line1')
             self.failIf(self.rs.completed,
                         "Got enough bytes from the reader, there is no reason to stop")
         d.addCallback(cb)
