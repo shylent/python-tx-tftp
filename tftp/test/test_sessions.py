@@ -89,8 +89,8 @@ class WriteSessions(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = WriteSession(self.writer, _clock=self.clock)
@@ -244,7 +244,7 @@ class WriteSessions(unittest.TestCase):
         return d
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class ReadSessions(unittest.TestCase):
@@ -255,8 +255,8 @@ anotherline"""
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -378,4 +378,4 @@ anotherline"""
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()

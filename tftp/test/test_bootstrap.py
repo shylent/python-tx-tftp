@@ -187,8 +187,8 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
@@ -225,7 +225,7 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.addCleanup(self.ws.cancel)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 class LocalOriginWriteOptionNegotiation(unittest.TestCase):
 
@@ -233,8 +233,8 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer,
@@ -284,7 +284,7 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
         self.assertTrue(self.transport.disconnecting)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 class BootstrapRemoteOriginWrite(unittest.TestCase):
 
@@ -292,8 +292,8 @@ class BootstrapRemoteOriginWrite(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = RemoteOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
@@ -330,7 +330,7 @@ class BootstrapRemoteOriginWrite(unittest.TestCase):
         return d
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
@@ -339,8 +339,8 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.options = OrderedDict()
@@ -410,7 +410,7 @@ class RemoteOriginWriteOptionNegotiation(unittest.TestCase):
         self.assertEqual(45, self.ws.session.tsize)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class BootstrapLocalOriginRead(unittest.TestCase):
@@ -421,8 +421,8 @@ anotherline"""
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -457,7 +457,7 @@ anotherline"""
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class LocalOriginReadOptionNegotiation(unittest.TestCase):
@@ -468,8 +468,8 @@ anotherline"""
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -504,7 +504,7 @@ anotherline"""
         self.assertTrue(self.transport.disconnecting)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class BootstrapRemoteOriginRead(unittest.TestCase):
@@ -515,8 +515,8 @@ anotherline"""
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -590,7 +590,7 @@ anotherline"""
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class RemoteOriginReadOptionNegotiation(unittest.TestCase):
@@ -601,8 +601,8 @@ anotherline"""
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child(b'foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -662,4 +662,4 @@ anotherline"""
         self.assertEqual(self.transport.value(), oack_datagram)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()

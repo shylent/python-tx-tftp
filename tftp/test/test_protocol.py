@@ -160,10 +160,10 @@ class TFTPWrapper(TFTP):
 class SuccessfulDispatch(unittest.TestCase):
 
     def setUp(self):
-        self.tmp_dir_path = tempfile.mkdtemp()
-        with FilePath(self.tmp_dir_path).child(b'nonempty').open('w') as fd:
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        with self.temp_dir.child(b'nonempty').open('w') as fd:
             fd.write(b'Something uninteresting')
-        self.backend = FilesystemSynchronousBackend(self.tmp_dir_path)
+        self.backend = FilesystemSynchronousBackend(self.temp_dir)
         self.tftp = TFTPWrapper(self.backend)
         self.client = DummyClient()
         reactor.listenUDP(0, self.client)
@@ -225,10 +225,10 @@ class SuccessfulAsyncDispatch(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        with FilePath(self.tmp_dir_path).child(b'nonempty').open('w') as fd:
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        with self.temp_dir.child(b'nonempty').open('w') as fd:
             fd.write(b'Something uninteresting')
-        self.backend = FilesystemAsyncBackend(self.tmp_dir_path, self.clock)
+        self.backend = FilesystemAsyncBackend(self.temp_dir, self.clock)
         self.tftp = TFTP(self.backend, self.clock)
 
     def test_get_reader_defers(self):

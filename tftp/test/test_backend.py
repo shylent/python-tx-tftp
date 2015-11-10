@@ -19,7 +19,7 @@ line3
 
 
     def setUp(self):
-        self.temp_dir = FilePath(tempfile.mkdtemp())
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
         self.existing_file_name = self.temp_dir.descendant((b"dir", b"foo"))
         self.existing_file_name.parent().makedirs()
         self.existing_file_name.setContent(self.test_data)
@@ -79,7 +79,7 @@ line3
 """
 
     def setUp(self):
-        self.temp_dir = FilePath(tempfile.mkdtemp())
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
         self.existing_file_name = self.temp_dir.child(b'foo')
         with self.existing_file_name.open('w') as f:
             f.write(self.test_data)
@@ -137,7 +137,7 @@ line3
 """
 
     def setUp(self):
-        self.temp_dir = FilePath(tempfile.mkdtemp())
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
         self.existing_file_name = self.temp_dir.child(b'foo')
         self.existing_file_name.setContent(self.test_data)
 
