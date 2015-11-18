@@ -6,8 +6,7 @@ from twisted.internet import reactor
 from twisted.internet.defer import maybeDeferred
 
 
-__all__ = ['SequentialCall', 'Spent', 'Cancelled', 'deferred',
-           'int_to_byte_string']
+__all__ = ['SequentialCall', 'Spent', 'Cancelled', 'deferred']
 
 
 class Spent(Exception):
@@ -135,16 +134,3 @@ def deferred(func):
     def wrapper(*args, **kwargs):
         return maybeDeferred(func, *args, **kwargs)
     return wrapper
-
-
-def int_to_byte_string(integer):
-    """Convert `integer` into a byte string.
-
-    For example, the number 1234 will be returned as b"1234". The obvious
-    approach of c{bytes(n)} does not work on Python 3; in fact it will return
-    a C{bytes} object of length C{n}.
-    """
-    if str is bytes:
-        return str(integer)
-    else:
-        return str(integer).encode("ascii")

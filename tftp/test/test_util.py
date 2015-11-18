@@ -1,8 +1,9 @@
 '''
 @author: shylent
 '''
-from tftp.util import SequentialCall, Spent, Cancelled, int_to_byte_string
+from tftp.util import SequentialCall, Spent, Cancelled
 from twisted.internet.task import Clock
+from twisted.python.compat import intToBytes
 from twisted.trial import unittest
 
 
@@ -71,9 +72,9 @@ class SequentialCalling(unittest.TestCase):
 class ConvertingIntegersToByteStrings(unittest.TestCase):
 
     def test_returns_byte_string(self):
-        self.assertIsInstance(int_to_byte_string(1), bytes)
+        self.assertIsInstance(intToBytes(1), bytes)
 
     def test_conversions(self):
-        self.assertEqual(b"1", int_to_byte_string(1))
-        self.assertEqual(b"1234", int_to_byte_string(1234))
-        self.assertEqual(b"-98", int_to_byte_string(-98))
+        self.assertEqual(b"1", intToBytes(1))
+        self.assertEqual(b"1234", intToBytes(1234))
+        self.assertEqual(b"-98", intToBytes(-98))

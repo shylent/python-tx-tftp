@@ -5,10 +5,11 @@ from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN,
     TFTPDatagramFactory, split_opcode, OP_OACK, OP_ERROR, OACKDatagram, OP_ACK,
     OP_DATA)
 from tftp.session import WriteSession, MAX_BLOCK_SIZE, ReadSession
-from tftp.util import SequentialCall, int_to_byte_string
+from tftp.util import SequentialCall
 from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
+from twisted.python.compat import intToBytes
 from twisted.python.util import OrderedDict
 
 
@@ -104,7 +105,7 @@ class TFTPBootstrap(DatagramProtocol):
         if int_blksize < 8 or int_blksize > 65464:
             return None
         int_blksize = min((int_blksize, MAX_BLOCK_SIZE))
-        return int_to_byte_string(int_blksize)
+        return intToBytes(int_blksize)
 
     def option_timeout(self, val):
         """Process timeout interval option
@@ -124,7 +125,7 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         if int_timeout < 1 or int_timeout > 255:
             return None
-        return int_to_byte_string(int_timeout)
+        return intToBytes(int_timeout)
 
     def option_tsize(self, val):
         """Process tsize interval option
@@ -143,7 +144,7 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         if int_tsize < 0:
             return None
-        return int_to_byte_string(int_tsize)
+        return intToBytes(int_tsize)
 
     def applyOptions(self, session, options):
         """Apply given options mapping to the given L{WriteSession} or
@@ -367,7 +368,7 @@ class RemoteOriginReadSession(TFTPBootstrap):
         if val == b"0":
             val = self.session.reader.size
             if val is not None:
-                val = int_to_byte_string(val)
+                val = intToBytes(val)
         return val
 
     def startProtocol(self):

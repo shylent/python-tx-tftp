@@ -9,13 +9,13 @@ from tftp.test.test_sessions import DelayedWriter, FakeTransport, DelayedReader
 from twisted.internet import reactor
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import Clock
+from twisted.python.compat import intToBytes
 from twisted.python.filepath import FilePath
 from twisted.python.util import OrderedDict
 from twisted.trial import unittest
 import shutil
 import tempfile
 from tftp.session import MAX_BLOCK_SIZE, WriteSession, ReadSession
-from tftp.util import int_to_byte_string
 
 ReadSession.timeout = (2, 2, 2)
 WriteSession.timeout = (2, 2, 2)
@@ -80,7 +80,7 @@ class TestOptionProcessing(unittest.TestCase):
         opts = self.proto.processOptions(OrderedDict({b'blksize':b'65464'}))
         self.proto.applyOptions(self.s, opts)
         self.assertEqual(self.s.block_size, MAX_BLOCK_SIZE)
-        self.assertEqual(opts, OrderedDict({b'blksize':int_to_byte_string(MAX_BLOCK_SIZE)}))
+        self.assertEqual(opts, OrderedDict({b'blksize':intToBytes(MAX_BLOCK_SIZE)}))
 
         self.s = MockSession()
         opts = self.proto.processOptions(OrderedDict({b'blksize':b'65465'}))
@@ -658,7 +658,7 @@ anotherline"""
         self.transport.clear()
         self.clock.advance(3)
         # The response contains the size of the test data.
-        self.options[b'tsize'] = int_to_byte_string(len(self.test_data))
+        self.options[b'tsize'] = intToBytes(len(self.test_data))
         oack_datagram = OACKDatagram(self.options).to_wire()
         self.assertEqual(self.transport.value(), oack_datagram)
 
