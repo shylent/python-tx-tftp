@@ -23,3 +23,4 @@ Extension) support. *blksize*
  - Client-specific commandline interface.
  - Code cleanup.
  - Multicast support (possibly).
+ - Python 3 support.
