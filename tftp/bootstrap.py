@@ -39,7 +39,7 @@ class TFTPBootstrap(DatagramProtocol):
     @type resultant_options: L{OrderedDict<twisted.python.util.OrderedDict>}
 
     @ivar remote: remote peer address
-    @type remote: C{(str, int)}
+    @type remote: C{(bytes, int)}
 
     @ivar timeout_watchdog: an object, that is responsible for timing the protocol
     out. If we are initiating the transfer, it is provided by the parent protocol
@@ -92,10 +92,10 @@ class TFTPBootstrap(DatagramProtocol):
         is returned instead.
 
         @param val: value of the option
-        @type val: C{str}
+        @type val: C{bytes}
 
         @return: accepted option value or C{None}, if it is invalid
-        @rtype: C{str} or C{None}
+        @rtype: C{bytes} or C{None}
 
         """
         try:
@@ -113,10 +113,10 @@ class TFTPBootstrap(DatagramProtocol):
         and 255, inclusive.
 
         @param val: value of the option
-        @type val: C{str}
+        @type val: C{bytes}
 
         @return: accepted option value or C{None}, if it is invalid
-        @rtype: C{str} or C{None}
+        @rtype: C{bytes} or C{None}
 
         """
         try:
@@ -132,10 +132,10 @@ class TFTPBootstrap(DatagramProtocol):
         (U{RFC2349<http://tools.ietf.org/html/rfc2349>}). Valid range is 0 and up.
 
         @param val: value of the option
-        @type val: C{str}
+        @type val: C{bytes}
 
         @return: accepted option value or C{None}, if it is invalid
-        @rtype: C{str} or C{None}
+        @rtype: C{bytes} or C{None}
 
         """
         try:

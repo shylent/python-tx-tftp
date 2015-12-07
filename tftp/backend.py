@@ -20,7 +20,7 @@ class IBackend(interface.Interface):
         the given L{file_name}.
 
         @param file_name: file name, specified as part of a TFTP read request (RRQ)
-        @type file_name: C{str}
+        @type file_name: C{bytes}
 
         @raise Unsupported: if reading is not supported for this particular
         backend instance
@@ -43,7 +43,7 @@ class IBackend(interface.Interface):
         the given L{file_name}.
 
         @param file_name: file name, specified as part of a TFTP write request (WRQ)
-        @type file_name: C{str}
+        @type file_name: C{bytes}
 
         @raise Unsupported: if writing is not supported for this particular
         backend instance
@@ -80,7 +80,7 @@ class IReader(interface.Interface):
 
         @return: data, that was read or a L{Deferred}, that will be fired with
         the data, that was read.
-        @rtype: C{str} or L{Deferred}
+        @rtype: C{bytes} or L{Deferred}
 
         """
 
@@ -150,7 +150,7 @@ class FilesystemReader(object):
         @see: L{IReader.read}
 
         @return: data, that was read
-        @rtype: C{str}
+        @rtype: C{bytes}
 
         """
         if self.state in ('eof', 'finished'):
@@ -239,7 +239,7 @@ class FilesystemSynchronousBackend(object):
 
     @param base_path: the base filesystem path for this backend, any attempts to
     read or write 'above' the specified path will be denied
-    @type base_path: C{str} or L{FilePath<twisted.python.filepath.FilePath>}
+    @type base_path: C{bytes} or L{FilePath<twisted.python.filepath.FilePath>}
 
     @param can_read: whether or not this backend should support reads
     @type can_read: C{bool}

@@ -40,10 +40,10 @@ def split_opcode(datagram):
     """Split the raw datagram into opcode and payload.
 
     @param datagram: raw datagram
-    @type datagram: C{str}
+    @type datagram: C{bytes}
 
     @return: a 2-tuple, the first item is the opcode and the second item is the payload
-    @rtype: (C{int}, C{str})
+    @rtype: (C{int}, C{bytes})
 
     @raise WireProtocolError: if the opcode cannot be extracted
 
@@ -83,7 +83,7 @@ class TFTPDatagram(object):
         """Parse the payload and return a datagram object
 
         @param payload: Binary representation of the payload (without the opcode)
-        @type payload: C{str}
+        @type payload: C{bytes}
 
         """
         raise NotImplementedError("Subclasses must override this")
@@ -91,7 +91,7 @@ class TFTPDatagram(object):
     def to_wire(self):
         """Return the wire representation of the datagram.
 
-        @rtype: C{str}
+        @rtype: C{bytes}
 
         """
         raise NotImplementedError("Subclasses must override this")
@@ -101,11 +101,11 @@ class RQDatagram(TFTPDatagram):
     """Base class for "RQ" (request) datagrams.
 
     @ivar filename: File name, that corresponds to this request.
-    @type filename: C{str}
+    @type filename: C{bytes}
 
     @ivar mode: Transfer mode. Valid values are C{netascii} and C{octet}.
     Case-insensitive.
-    @type mode: C{str}
+    @type mode: C{bytes}
 
     @ivar options: Any options, that were requested by the client (as per
     U{RFC2374<http://tools.ietf.org/html/rfc2347>}
@@ -229,7 +229,7 @@ class DATADatagram(TFTPDatagram):
     @type blocknum: C{int}
 
     @ivar data: binary data
-    @type data: C{str}
+    @type data: C{bytes}
 
     """
     opcode = OP_DATA
@@ -239,7 +239,7 @@ class DATADatagram(TFTPDatagram):
         """Parse the payload and return a L{DATADatagram} object.
 
         @param payload: Binary representation of the payload (without the opcode)
-        @type payload: C{str}
+        @type payload: C{bytes}
 
         @return: A L{DATADatagram} object
         @rtype: L{DATADatagram}
@@ -279,7 +279,7 @@ class ACKDatagram(TFTPDatagram):
         """Parse the payload and return a L{ACKDatagram} object.
 
         @param payload: Binary representation of the payload (without the opcode)
-        @type payload: C{str}
+        @type payload: C{bytes}
 
         @return: An L{ACKDatagram} object
         @rtype: L{ACKDatagram}
@@ -310,7 +310,7 @@ class ERRORDatagram(TFTPDatagram):
 
     @ivar errmsg: An error message, describing the error condition in which this
     datagram was produced
-    @type errmsg: C{str}
+    @type errmsg: C{bytes}
 
     """
     opcode = OP_ERROR
@@ -323,7 +323,7 @@ class ERRORDatagram(TFTPDatagram):
         extracted, a default error string is generated, based on the error code.
 
         @param payload: Binary representation of the payload (without the opcode)
-        @type payload: C{str}
+        @type payload: C{bytes}
 
         @return: An L{ERRORDatagram} object
         @rtype: L{ERRORDatagram}
@@ -355,7 +355,7 @@ class ERRORDatagram(TFTPDatagram):
         @type errorcode: C{int}
 
         @param errmsg: An error message (optional)
-        @type errmsg: C{str} or C{NoneType}
+        @type errmsg: C{bytes} or C{NoneType}
 
         @raise InvalidErrorcodeError: if the error code is not known
 
@@ -400,7 +400,7 @@ class _TFTPDatagramFactory(object):
         @type opcode: C{int}
 
         @param payload: payload
-        @type payload: C{str}
+        @type payload: C{bytes}
 
         @return: datagram object
         @rtype: L{TFTPDatagram}

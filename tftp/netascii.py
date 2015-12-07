@@ -78,7 +78,7 @@ class NetasciiReceiverProxy(object):
         byte in the chunk is a CR.
 
         @param data: data to be written
-        @type data: C{str}
+        @type data: C{bytes}
 
         @return: L{Deferred}, that will be fired when the write is complete
         @rtype: L{Deferred}

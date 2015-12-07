@@ -151,7 +151,7 @@ class WriteSession(DatagramProtocol):
         """Send data to the remote peer
 
         @param bytes: bytes to send
-        @type bytes: C{str}
+        @type bytes: C{bytes}
 
         """
         self.transport.write(bytes)
@@ -277,7 +277,7 @@ class ReadSession(DatagramProtocol):
         """Send data to the remote peer
 
         @param bytes: bytes to send
-        @type bytes: C{str}
+        @type bytes: C{bytes}
 
         """
         self.transport.write(bytes)
