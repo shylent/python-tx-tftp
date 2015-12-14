@@ -20,7 +20,7 @@ class IBackend(interface.Interface):
         the given L{file_name}.
 
         @param file_name: file name, specified as part of a TFTP read request (RRQ)
-        @type file_name: C{str}
+        @type file_name: C{bytes}
 
         @raise Unsupported: if reading is not supported for this particular
         backend instance
@@ -43,7 +43,7 @@ class IBackend(interface.Interface):
         the given L{file_name}.
 
         @param file_name: file name, specified as part of a TFTP write request (WRQ)
-        @type file_name: C{str}
+        @type file_name: C{bytes}
 
         @raise Unsupported: if writing is not supported for this particular
         backend instance
@@ -80,7 +80,7 @@ class IReader(interface.Interface):
 
         @return: data, that was read or a L{Deferred}, that will be fired with
         the data, that was read.
-        @rtype: C{str} or L{Deferred}
+        @rtype: C{bytes} or L{Deferred}
 
         """
 
@@ -113,6 +113,7 @@ class IWriter(interface.Interface):
         """Tell this writer, that the transfer has ended unsuccessfully"""
 
 
+@interface.implementer(IReader)
 class FilesystemReader(object):
     """A reader to go with L{FilesystemSynchronousBackend}.
 
@@ -124,8 +125,6 @@ class FilesystemReader(object):
     @raise FileNotFound: if the file does not exist
 
     """
-
-    interface.implements(IReader)
 
     def __init__(self, file_path):
         self.file_path = file_path
@@ -151,11 +150,11 @@ class FilesystemReader(object):
         @see: L{IReader.read}
 
         @return: data, that was read
-        @rtype: C{str}
+        @rtype: C{bytes}
 
         """
         if self.state in ('eof', 'finished'):
-            return ''
+            return b''
         data = self.file_obj.read(size)
         if not data:
             self.state = 'eof'
@@ -172,6 +171,7 @@ class FilesystemReader(object):
         self.state = 'finished'
 
 
+@interface.implementer(IWriter)
 class FilesystemWriter(object):
     """A writer to go with L{FilesystemSynchronousBackend}.
 
@@ -188,8 +188,6 @@ class FilesystemWriter(object):
     @raise FileExists: if the file already exists
 
     """
-
-    interface.implements(IWriter)
 
     def __init__(self, file_path):
         if file_path.exists():
@@ -233,6 +231,7 @@ class FilesystemWriter(object):
             self.state = 'cancelled'
 
 
+@interface.implementer(IBackend)
 class FilesystemSynchronousBackend(object):
     """A synchronous filesystem backend.
 
@@ -240,7 +239,7 @@ class FilesystemSynchronousBackend(object):
 
     @param base_path: the base filesystem path for this backend, any attempts to
     read or write 'above' the specified path will be denied
-    @type base_path: C{str} or L{FilePath<twisted.python.filepath.FilePath>}
+    @type base_path: C{bytes} or L{FilePath<twisted.python.filepath.FilePath>}
 
     @param can_read: whether or not this backend should support reads
     @type can_read: C{bool}
@@ -249,8 +248,6 @@ class FilesystemSynchronousBackend(object):
     @type can_write: C{bool}
 
     """
-
-    interface.implements(IBackend)
 
     def __init__(self, base_path, can_read=True, can_write=True):
         try:
@@ -270,8 +267,8 @@ class FilesystemSynchronousBackend(object):
         if not self.can_read:
             raise Unsupported("Reading not supported")
         try:
-            target_path = self.base.descendant(file_name.split("/"))
-        except InsecurePath, e:
+            target_path = self.base.descendant(file_name.split(b"/"))
+        except InsecurePath as e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemReader(target_path)
 
@@ -286,7 +283,7 @@ class FilesystemSynchronousBackend(object):
         if not self.can_write:
             raise Unsupported("Writing not supported")
         try:
-            target_path = self.base.descendant(file_name.split("/"))
-        except InsecurePath, e:
+            target_path = self.base.descendant(file_name.split(b"/"))
+        except InsecurePath as e:
             raise AccessViolation("Insecure path: %s" % e)
         return FilesystemWriter(target_path)

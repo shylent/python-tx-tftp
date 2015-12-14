@@ -40,10 +40,12 @@ class TFTP(DatagramProtocol):
         log.msg("Datagram received from %s: %s" % (addr, datagram))
 
         mode = datagram.mode.lower()
-        if datagram.mode not in ('netascii', 'octet'):
-            return self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
-                "Unknown transfer mode %s, - expected "
-                "'netascii' or 'octet' (case-insensitive)" % mode).to_wire(), addr)
+        if mode not in (b'netascii', b'octet'):
+            errmsg = (
+                u"Unknown transfer mode '%s', - expected 'netascii' or 'octet'"
+                u"(case-insensitive)" % mode.decode("ascii"))
+            return self.transport.write(ERRORDatagram.from_code(
+                ERR_ILLEGAL_OP, errmsg.encode("ascii", "replace")).to_wire(), addr)
 
         self._clock.callLater(0, self._startSession, datagram, addr, mode)
 
@@ -65,27 +67,28 @@ class TFTP(DatagramProtocol):
             elif datagram.opcode == OP_RRQ:
                 fs_interface = yield call(
                     context, self.backend.get_reader, datagram.filename)
-        except Unsupported, e:
+        except Unsupported as e:
             self.transport.write(ERRORDatagram.from_code(ERR_ILLEGAL_OP,
-                                    str(e)).to_wire(), addr)
+                u"{}".format(e).encode("ascii", "replace")).to_wire(), addr)
         except AccessViolation:
             self.transport.write(ERRORDatagram.from_code(ERR_ACCESS_VIOLATION).to_wire(), addr)
         except FileExists:
             self.transport.write(ERRORDatagram.from_code(ERR_FILE_EXISTS).to_wire(), addr)
         except FileNotFound:
             self.transport.write(ERRORDatagram.from_code(ERR_FILE_NOT_FOUND).to_wire(), addr)
-        except BackendError, e:
-            self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED, str(e)).to_wire(), addr)
+        except BackendError as e:
+            self.transport.write(ERRORDatagram.from_code(ERR_NOT_DEFINED,
+                u"{}".format(e).encode("ascii", "replace")).to_wire(), addr)
         else:
             if datagram.opcode == OP_WRQ:
-                if mode == 'netascii':
+                if mode == b'netascii':
                     fs_interface = NetasciiReceiverProxy(fs_interface)
                 session = RemoteOriginWriteSession(addr, fs_interface,
                                                    datagram.options, _clock=self._clock)
                 reactor.listenUDP(0, session)
                 returnValue(session)
             elif datagram.opcode == OP_RRQ:
-                if mode == 'netascii':
+                if mode == b'netascii':
                     fs_interface = NetasciiSenderProxy(fs_interface)
                 session = RemoteOriginReadSession(addr, fs_interface,
                                                   datagram.options, _clock=self._clock)

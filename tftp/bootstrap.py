@@ -9,7 +9,9 @@ from tftp.util import SequentialCall
 from twisted.internet import reactor
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
+from twisted.python.compat import intToBytes
 from twisted.python.util import OrderedDict
+
 
 class TFTPBootstrap(DatagramProtocol):
     """Base class for TFTP Bootstrap classes, classes, that handle initial datagram
@@ -37,7 +39,7 @@ class TFTPBootstrap(DatagramProtocol):
     @type resultant_options: L{OrderedDict<twisted.python.util.OrderedDict>}
 
     @ivar remote: remote peer address
-    @type remote: C{(str, int)}
+    @type remote: C{(bytes, int)}
 
     @ivar timeout_watchdog: an object, that is responsible for timing the protocol
     out. If we are initiating the transfer, it is provided by the parent protocol
@@ -46,7 +48,7 @@ class TFTPBootstrap(DatagramProtocol):
     @type backend: L{IReader} or L{IWriter} provider
 
     """
-    supported_options = ('blksize', 'timeout', 'tsize')
+    supported_options = (b'blksize', b'timeout', b'tsize')
 
     def __init__(self, remote, backend, options=None, _clock=None):
         if options is None:
@@ -75,10 +77,11 @@ class TFTPBootstrap(DatagramProtocol):
 
         """
         accepted_options = OrderedDict()
-        for name, val in options.iteritems():
+        for name, val in options.items():
             norm_name = name.lower()
             if norm_name in self.supported_options:
-                actual_value = getattr(self, 'option_' + norm_name)(val)
+                actual_value = getattr(
+                    self, 'option_' + norm_name.decode("ascii"))(val)
                 if actual_value is not None:
                     accepted_options[name] = actual_value
         return accepted_options
@@ -89,10 +92,10 @@ class TFTPBootstrap(DatagramProtocol):
         is returned instead.
 
         @param val: value of the option
-        @type val: C{str}
+        @type val: C{bytes}
 
         @return: accepted option value or C{None}, if it is invalid
-        @rtype: C{str} or C{None}
+        @rtype: C{bytes} or C{None}
 
         """
         try:
@@ -102,7 +105,7 @@ class TFTPBootstrap(DatagramProtocol):
         if int_blksize < 8 or int_blksize > 65464:
             return None
         int_blksize = min((int_blksize, MAX_BLOCK_SIZE))
-        return str(int_blksize)
+        return intToBytes(int_blksize)
 
     def option_timeout(self, val):
         """Process timeout interval option
@@ -110,10 +113,10 @@ class TFTPBootstrap(DatagramProtocol):
         and 255, inclusive.
 
         @param val: value of the option
-        @type val: C{str}
+        @type val: C{bytes}
 
         @return: accepted option value or C{None}, if it is invalid
-        @rtype: C{str} or C{None}
+        @rtype: C{bytes} or C{None}
 
         """
         try:
@@ -122,17 +125,17 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         if int_timeout < 1 or int_timeout > 255:
             return None
-        return str(int_timeout)
+        return intToBytes(int_timeout)
 
     def option_tsize(self, val):
         """Process tsize interval option
         (U{RFC2349<http://tools.ietf.org/html/rfc2349>}). Valid range is 0 and up.
 
         @param val: value of the option
-        @type val: C{str}
+        @type val: C{bytes}
 
         @return: accepted option value or C{None}, if it is invalid
-        @rtype: C{str} or C{None}
+        @rtype: C{bytes} or C{None}
 
         """
         try:
@@ -141,7 +144,7 @@ class TFTPBootstrap(DatagramProtocol):
             return None
         if int_tsize < 0:
             return None
-        return str(int_tsize)
+        return intToBytes(int_tsize)
 
     def applyOptions(self, session, options):
         """Apply given options mapping to the given L{WriteSession} or
@@ -154,13 +157,13 @@ class TFTPBootstrap(DatagramProtocol):
         @type options: L{OrderedDict<twisted.python.util.OrderedDict>}
 
         """
-        for opt_name, opt_val in options.iteritems():
-            if opt_name == 'blksize':
+        for opt_name, opt_val in options.items():
+            if opt_name == b'blksize':
                 session.block_size = int(opt_val)
-            elif opt_name == 'timeout':
+            elif opt_name == b'timeout':
                 timeout = int(opt_val)
                 session.timeout = (timeout,) * 3
-            elif opt_name == 'tsize':
+            elif opt_name == b'tsize':
                 tsize = int(opt_val)
                 session.tsize = tsize
 
@@ -362,10 +365,10 @@ class RemoteOriginReadSession(TFTPBootstrap):
 
         """
         val = TFTPBootstrap.option_tsize(self, val)
-        if val == str(0):
+        if val == b"0":
             val = self.session.reader.size
             if val is not None:
-                val = str(val)
+                val = intToBytes(val)
         return val
 
     def startProtocol(self):

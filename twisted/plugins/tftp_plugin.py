@@ -8,7 +8,7 @@ from twisted.application.service import IServiceMaker
 from twisted.plugin import IPlugin
 from twisted.python import usage
 from twisted.python.filepath import FilePath
-from zope.interface import implements
+from zope.interface import implementer
 
 
 def to_path(str_path):
@@ -30,8 +30,8 @@ class TFTPOptions(usage.Options):
             raise usage.UsageError("You must provide a root directory for the server")
 
 
+@implementer(IServiceMaker, IPlugin)
 class TFTPServiceCreator(object):
-    implements(IServiceMaker, IPlugin)
     tapname = "tftp"
     description = "A TFTP Server"
     options = TFTPOptions

@@ -58,7 +58,7 @@ class FileNotFound(BackendError):
     Corresponds to the "(1) File not found" TFTP error code.
 
     @ivar file_path: Path to the file, that was requested
-    @type file_path: C{str} or L{twisted.python.filepath.FilePath}
+    @type file_path: C{bytes} or L{twisted.python.filepath.FilePath}
 
     """
 
@@ -75,7 +75,7 @@ class FileExists(BackendError):
     Corresponds to the "(6) File already exists" TFTP error code.
 
     @ivar file_path: Path to file
-    @type file_path: C{str} or L{twisted.python.filepath.FilePath}
+    @type file_path: C{bytes} or L{twisted.python.filepath.FilePath}
     
     """
 

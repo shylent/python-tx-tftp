@@ -51,8 +51,8 @@ class DelayedWriter(FilesystemWriter):
         return d
 
 
+@interface.implementer(IReader)
 class FailingReader(object):
-    interface.implements(IReader)
 
     size = None
 
@@ -63,8 +63,8 @@ class FailingReader(object):
         pass
 
 
+@interface.implementer(IWriter)
 class FailingWriter(object):
-    interface.implements(IWriter)
 
     def write(self, data):
         raise IOError("I fail")
@@ -89,8 +89,8 @@ class WriteSessions(unittest.TestCase):
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = WriteSession(self.writer, _clock=self.clock)
@@ -99,21 +99,21 @@ class WriteSessions(unittest.TestCase):
         self.ws.startProtocol()
 
     def test_ERROR(self):
-        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, 'no reason')
+        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, b'no reason')
         self.ws.datagramReceived(err_dgram)
         self.clock.advance(0.1)
-        self.failIf(self.transport.value())
-        self.failUnless(self.transport.disconnecting)
+        self.assertFalse(self.transport.value())
+        self.assertTrue(self.transport.disconnecting)
 
     @inlineCallbacks
     def test_DATA_stale_blocknum(self):
         self.ws.block_size = 6
         self.ws.blocknum = 2
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         yield self.ws.datagramReceived(data_datagram)
         self.writer.finish()
-        self.failIf(self.target.open('r').read())
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.target.open('r').read())
+        self.assertFalse(self.transport.disconnecting)
         ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
         self.assertEqual(ack_dgram.blocknum, 1)
         self.addCleanup(self.ws.cancel)
@@ -121,29 +121,29 @@ class WriteSessions(unittest.TestCase):
     @inlineCallbacks
     def test_DATA_invalid_blocknum(self):
         self.ws.block_size = 6
-        data_datagram = DATADatagram(3, 'foobar')
+        data_datagram = DATADatagram(3, b'foobar')
         yield self.ws.datagramReceived(data_datagram)
         self.writer.finish()
-        self.failIf(self.target.open('r').read())
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.target.open('r').read())
+        self.assertFalse(self.transport.disconnecting)
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-        self.assert_(isinstance(err_dgram, ERRORDatagram))
+        self.assertTrue(isinstance(err_dgram, ERRORDatagram))
         self.addCleanup(self.ws.cancel)
 
     def test_DATA(self):
         self.ws.block_size = 6
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.advance(0.1)
             #self.writer.finish()
             #self.assertEqual(self.target.open('r').read(), 'foobar')
-            self.failIf(self.transport.disconnecting)
+            self.assertFalse(self.transport.disconnecting)
             ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
             self.assertEqual(ack_dgram.blocknum, 1)
-            self.failIf(self.ws.completed,
+            self.assertFalse(self.ws.completed,
                         "Data length is equal to blocksize, no reason to stop")
-            data_datagram = DATADatagram(2, 'barbaz')
+            data_datagram = DATADatagram(2, b'barbaz')
 
             self.transport.clear()
             d = self.ws.datagramReceived(data_datagram)
@@ -152,10 +152,10 @@ class WriteSessions(unittest.TestCase):
             return d
         def cb_(ign):
             self.clock.advance(0.1)
-            self.failIf(self.transport.disconnecting)
+            self.assertFalse(self.transport.disconnecting)
             ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
             self.assertEqual(ack_dgram.blocknum, 2)
-            self.failIf(self.ws.completed,
+            self.assertFalse(self.ws.completed,
                         "Data length is equal to blocksize, no reason to stop")
         d.addCallback(cb)
         self.addCleanup(self.ws.cancel)
@@ -166,27 +166,27 @@ class WriteSessions(unittest.TestCase):
         self.ws.block_size = 6
 
         # Send a terminating datagram
-        data_datagram = DATADatagram(1, 'foo')
+        data_datagram = DATADatagram(1, b'foo')
         d = self.ws.datagramReceived(data_datagram)
         def cb(res):
             self.clock.advance(0.1)
-            self.assertEqual(self.target.open('r').read(), 'foo')
+            self.assertEqual(self.target.open('r').read(), b'foo')
             ack_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-            self.failUnless(isinstance(ack_dgram, ACKDatagram))
-            self.failUnless(self.ws.completed,
+            self.assertTrue(isinstance(ack_dgram, ACKDatagram))
+            self.assertTrue(self.ws.completed,
                         "Data length is less, than blocksize, time to stop")
             self.transport.clear()
 
             # Send another datagram after the transfer is considered complete
-            data_datagram = DATADatagram(2, 'foobar')
+            data_datagram = DATADatagram(2, b'foobar')
             self.ws.datagramReceived(data_datagram)
-            self.assertEqual(self.target.open('r').read(), 'foo')
+            self.assertEqual(self.target.open('r').read(), b'foo')
             err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-            self.failUnless(isinstance(err_dgram, ERRORDatagram))
+            self.assertTrue(isinstance(err_dgram, ERRORDatagram))
 
             # Check for proper disconnection after grace timeout expires
             self.clock.pump((4,)*4)
-            self.failUnless(self.transport.disconnecting,
+            self.assertTrue(self.transport.disconnecting,
                 "We are done and the grace timeout is over, should disconnect")
         d.addCallback(cb)
         self.clock.advance(2)
@@ -195,7 +195,7 @@ class WriteSessions(unittest.TestCase):
     def test_DATA_backoff(self):
         self.ws.block_size = 5
 
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.advance(0.1)
@@ -216,7 +216,7 @@ class WriteSessions(unittest.TestCase):
             self.assertEqual(self.transport.value(),
                              ack_datagram.to_wire()*3)
 
-            self.failUnless(self.transport.disconnecting)
+            self.assertTrue(self.transport.disconnecting)
         d.addCallback(cb)
         self.clock.advance(2.1)
         return d
@@ -225,38 +225,38 @@ class WriteSessions(unittest.TestCase):
     def test_failed_write(self):
         self.writer.cancel()
         self.ws.writer = FailingWriter()
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         yield self.ws.datagramReceived(data_datagram)
         self.flushLoggedErrors()
         self.clock.advance(0.1)
         err_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-        self.failUnless(isinstance(err_datagram, ERRORDatagram))
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(isinstance(err_datagram, ERRORDatagram))
+        self.assertTrue(self.transport.disconnecting)
 
     def test_time_out(self):
-        data_datagram = DATADatagram(1, 'foobar')
+        data_datagram = DATADatagram(1, b'foobar')
         d = self.ws.datagramReceived(data_datagram)
         def cb(ign):
             self.clock.pump((1,)*13)
-            self.failUnless(self.transport.disconnecting)
+            self.assertTrue(self.transport.disconnecting)
         d.addCallback(cb)
         self.clock.advance(4)
         return d
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
 
 
 class ReadSessions(unittest.TestCase):
-    test_data = """line1
+    test_data = b"""line1
 line2
 anotherline"""
     port = 65466
 
     def setUp(self):
         self.clock = Clock()
-        self.tmp_dir_path = tempfile.mkdtemp()
-        self.target = FilePath(self.tmp_dir_path).child('foo')
+        self.temp_dir = FilePath(tempfile.mkdtemp()).asBytesMode()
+        self.target = self.temp_dir.child(b'foo')
         with self.target.open('wb') as temp_fd:
             temp_fd.write(self.test_data)
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
@@ -267,18 +267,18 @@ anotherline"""
 
     @inlineCallbacks
     def test_ERROR(self):
-        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, 'no reason')
+        err_dgram = ERRORDatagram.from_code(ERR_NOT_DEFINED, b'no reason')
         yield self.rs.datagramReceived(err_dgram)
-        self.failIf(self.transport.value())
-        self.failUnless(self.transport.disconnecting)
+        self.assertFalse(self.transport.value())
+        self.assertTrue(self.transport.disconnecting)
 
     @inlineCallbacks
     def test_ACK_invalid_blocknum(self):
         ack_datagram = ACKDatagram(3)
         yield self.rs.datagramReceived(ack_datagram)
-        self.failIf(self.transport.disconnecting)
+        self.assertFalse(self.transport.disconnecting)
         err_dgram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-        self.assert_(isinstance(err_dgram, ERRORDatagram))
+        self.assertTrue(isinstance(err_dgram, ERRORDatagram))
         self.addCleanup(self.rs.cancel)
 
     @inlineCallbacks
@@ -286,8 +286,8 @@ anotherline"""
         self.rs.blocknum = 2
         ack_datagram = ACKDatagram(1)
         yield self.rs.datagramReceived(ack_datagram)
-        self.failIf(self.transport.disconnecting)
-        self.failIf(self.transport.value(),
+        self.assertFalse(self.transport.disconnecting)
+        self.assertFalse(self.transport.value(),
                     "Stale ACK datagram, we should not write anything back")
         self.addCleanup(self.rs.cancel)
 
@@ -298,10 +298,10 @@ anotherline"""
         d = self.rs.datagramReceived(ack_datagram)
         def cb(ign):
             self.clock.advance(0.1)
-            self.failIf(self.transport.disconnecting)
+            self.assertFalse(self.transport.disconnecting)
             data_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-            self.assertEqual(data_datagram.data, 'line1')
-            self.failIf(self.rs.completed,
+            self.assertEqual(data_datagram.data, b'line1')
+            self.assertFalse(self.rs.completed,
                         "Got enough bytes from the reader, there is no reason to stop")
         d.addCallback(cb)
         self.clock.advance(2.5)
@@ -322,7 +322,7 @@ anotherline"""
             self.rs.datagramReceived(ack_datagram)
 
             self.assertEqual(self.transport.value(), DATADatagram(2, self.test_data).to_wire())
-            self.failUnless(self.rs.completed,
+            self.assertTrue(self.rs.completed,
                         "Data length is less, than blocksize, time to stop")
         self.addCleanup(self.rs.cancel)
         d.addCallback(cb)
@@ -352,7 +352,7 @@ anotherline"""
             self.assertEqual(self.transport.value(),
                              DATADatagram(2, self.test_data[:5]).to_wire()*3)
 
-            self.failUnless(self.transport.disconnecting)
+            self.assertTrue(self.transport.disconnecting)
         d.addCallback(cb)
         self.clock.advance(2.5)
         return d
@@ -367,8 +367,8 @@ anotherline"""
         self.flushLoggedErrors()
         self.clock.advance(0.1)
         err_datagram = TFTPDatagramFactory(*split_opcode(self.transport.value()))
-        self.failUnless(isinstance(err_datagram, ERRORDatagram))
-        self.failUnless(self.transport.disconnecting)
+        self.assertTrue(isinstance(err_datagram, ERRORDatagram))
+        self.assertTrue(self.transport.disconnecting)
 
     def test_rollover(self):
         self.rs.block_size = len(self.test_data)
@@ -378,4 +378,4 @@ anotherline"""
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
-        shutil.rmtree(self.tmp_dir_path)
+        self.temp_dir.remove()
