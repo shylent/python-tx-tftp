@@ -19,4 +19,6 @@ setup(
     packages={'tftp'},
     install_requires={"Twisted"},
     description="A Twisted-based TFTP implementation.",
+    setup_requires={"setuptools_trial"},
+    test_suite="tftp",
 )

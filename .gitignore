@@ -1,6 +1,7 @@
 *.pyc
 *.pyo
 *~
+/.eggs
 /.tox
 /_trial_temp
 /bin
@@ -8,6 +9,8 @@
 /include
 /lib
 /local
+/pip-selfcheck.json
+/share
 /TAGS
 /tags
 dropin.cache
