@@ -2,126 +2,73 @@
 @author: shylent
 '''
 from functools import wraps
+from itertools import tee
 from twisted.internet import reactor
-from twisted.internet.defer import maybeDeferred
+from twisted.internet.defer import CancelledError, maybeDeferred, succeed
+from twisted.internet.task import deferLater
 
 
-__all__ = ['SequentialCall', 'Spent', 'Cancelled', 'deferred']
+__all__ = ['CANCELLED', 'deferred', 'timedCaller']
 
 
-class Spent(Exception):
-    """Trying to iterate a L{SequentialCall}, that is exhausted"""
+# Token used by L{timedCaller} to denote that it was cancelled instead of
+# finishing naturally. This is not an error condition, and may not be of
+# interest during normal use, but is helpful when testing.
+CANCELLED = "CANCELLED"
 
-class Cancelled(Exception):
-    """Trying to iterate a L{SequentialCall}, that's been cancelled"""
 
-def no_op(*args, **kwargs):
-    pass
+def timedCaller(timings, call, last, clock=reactor):
+    """Call C{call} or C{last} according to C{timings}.
 
-class SequentialCall(object):
-    """Calls a given callable at intervals, specified by the L{timeout} iterable.
-    Optionally calls a timeout handler, if provided, when there are no more timeout values.
+    The given C{timings} is an iterable of numbers. Each is a delay in seconds
+    that will be taken before making the next call to C{call} or C{last}.
 
-    @param timeout: an iterable, that yields valid _seconds arguments to
-    L{callLater<twisted.internet.interfaces.IReactorTime.callLater>} (floats)
-    @type timeout: any iterable
+    The call to C{last} will happen after the last delay. If C{timings} is an
+    infinite iterable then C{last} will never be called.
 
-    @param run_now: whether or not the callable should be called immediately
-    upon initialization. Relinquishes control to the reactor
-    (calls callLater(0,...)). Default: C{False}.
-    @type run_now: C{bool}
-
-    @param callable: the callable, that will be called at the specified intervals
-    @param callable_args: the arguments to call it with
-    @param callable_kwargs: the keyword arguments to call it with
-
-    @param on_timeout: the callable, that will be called when there are no more
-    timeout values
-    @param on_timeout_args: the arguments to call it with
-    @param on_timeout_kwargs: the keyword arguments to call it with 
-    
+    This returns a C{Deferred} which can be cancelled. If the cancellation is
+    successful — i.e. there is something to cancel — then the result is set to
+    L{CANCELLED}. In other words, L{CancelledError} is squashed into a
+    non-failure condition.
     """
+    timings = iterlast(timings)
 
-    @classmethod
-    def run(cls, timeout, callable, callable_args=None, callable_kwargs=None,
-                 on_timeout=None, on_timeout_args=None, on_timeout_kwargs=None,
-                 run_now=False, _clock=None):
-        """Create a L{SequentialCall} object and start its scheduler cycle
-
-        @see: L{SequentialCall}
-
-        """
-        inst = cls(timeout, callable, callable_args, callable_kwargs,
-                   on_timeout, on_timeout_args, on_timeout_kwargs,
-                   run_now, _clock)
-        inst.reschedule()
-        return inst
-
-    def __init__(self, timeout,
-                 callable, callable_args=None, callable_kwargs=None,
-                 on_timeout=None, on_timeout_args=None, on_timeout_kwargs=None,
-                 run_now=False, _clock=None):
-        self._timeout = iter(timeout)
-        self.callable = callable
-        self.callable_args = callable_args or []
-        self.callable_kwargs = callable_kwargs or {}
-        self.on_timeout = on_timeout or no_op
-        self.on_timeout_args = on_timeout_args or []
-        self.on_timeout_kwargs = on_timeout_kwargs or {}
-        self._wd = None
-        self._spent = self._cancelled = False
-        self._ran_first = not run_now
-        if _clock is None:
-            self._clock = reactor
+    def iterate(_=None):
+        for is_last, delay in timings:
+            # Return immediately with a deferred call.
+            if is_last:
+                return deferLater(clock, delay, last)
+            else:
+                return deferLater(clock, delay, call).addCallback(iterate)
         else:
-            self._clock = _clock
+            # No timings were given.
+            return succeed(None)
 
-    def _call_and_schedule(self):
-        self.callable(*self.callable_args, **self.callable_kwargs)
-        self._ran_first = True
-        if not self._spent:
-            self.reschedule()
+    def squashCancelled(failure):
+        if failure.check(CancelledError) is None:
+            return failure
+        else:
+            return CANCELLED
 
-    def reschedule(self):
-        """Schedule the next L{callable} call
+    return iterate().addErrback(squashCancelled)
 
-        @raise Spent: if the timeout iterator has been exhausted and on_timeout
-        handler has been already called
-        @raise Cancelled: if this L{SequentialCall} has already been cancelled
 
-        """
-        if not self._ran_first:
-            self._wd = self._clock.callLater(0, self._call_and_schedule)
-            return
-        if self._cancelled:
-            raise Cancelled("This SequentialCall has already been cancelled")
-        if self._spent:
-            raise Spent("This SequentialCall has already timed out")
+def iterlast(iterable):
+    """Generate C{(is_last, item)} tuples from C{iterable}.
+
+    On each iteration this peeks ahead to see if the most recent iteration
+    will be the last, and returns this information as the C{is_last} element
+    of each tuple.
+    """
+    iterable, peekable = tee(iterable)
+    next(peekable)  # Advance in front.
+    for item in iterable:
         try:
-            next_timeout = next(self._timeout)
-            self._wd = self._clock.callLater(next_timeout, self._call_and_schedule)
+            next(peekable)
         except StopIteration:
-            self.on_timeout(*self.on_timeout_args, **self.on_timeout_kwargs)
-            self._spent = True
-
-    def cancel(self):
-        """Cancel the next scheduled call
-
-        @raise Cancelled: if this SequentialCall has already been cancelled
-        @raise Spent: if this SequentialCall has expired
-
-        """
-        if self._cancelled:
-            raise Cancelled("This SequentialCall has already been cancelled")
-        if self._spent:
-            raise Spent("This SequentialCall has already timed out")
-        if self._wd is not None and self._wd.active():
-            self._wd.cancel()
-        self._spent = self._cancelled = True
-
-    def active(self):
-        """Whether or not this L{SequentialCall} object is considered active"""
-        return not (self._spent or self._cancelled)
+            yield True, item
+        else:
+            yield False, item
 
 
 def deferred(func):

@@ -6,14 +6,13 @@ from tftp.bootstrap import (LocalOriginWriteSession, LocalOriginReadSession,
 from tftp.datagram import (ACKDatagram, TFTPDatagramFactory, split_opcode,
     ERR_TID_UNKNOWN, DATADatagram, OACKDatagram, OP_ACK)
 from tftp.test.test_sessions import DelayedWriter, FakeTransport, DelayedReader
-from twisted.internet import reactor
+from tftp.util import timedCaller
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import Clock
 from twisted.python.compat import intToBytes
 from twisted.python.filepath import FilePath
 from twisted.python.util import OrderedDict
 from twisted.trial import unittest
-import shutil
 import tempfile
 from tftp.session import MAX_BLOCK_SIZE, WriteSession, ReadSession
 
@@ -21,29 +20,6 @@ ReadSession.timeout = (2, 2, 2)
 WriteSession.timeout = (2, 2, 2)
 RemoteOriginReadSession.timeout = (2, 2, 2)
 RemoteOriginWriteSession.timeout = (2, 2, 2)
-
-class MockHandshakeWatchdog(object):
-
-    def __init__(self, when, f, args=None, kwargs=None, _clock=None):
-        self._clock = _clock
-        self.when = when
-        self.f = f
-        self.args = args or []
-        self.kwargs = kwargs or {}
-        if _clock is None:
-            self._clock = reactor
-        else:
-            self._clock = _clock
-
-    def start(self):
-        self.wd = self._clock.callLater(self.when, self.f, *self.args, **self.kwargs)
-
-    def cancel(self):
-        if self.wd.active():
-            self.wd.cancel()
-
-    def active(self):
-        return self.wd.active()
 
 class MockSession(object):
     block_size = 512
@@ -193,7 +169,7 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.writer = DelayedWriter(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer, _clock=self.clock)
-        self.wd = MockHandshakeWatchdog(4, self.ws.timedOut, _clock=self.clock)
+        self.wd = timedCaller([5], None, self.ws.timedOut, self.clock)
         self.ws.timeout_watchdog = self.wd
         self.ws.transport = self.transport
 
@@ -222,7 +198,6 @@ class BootstrapLocalOriginWrite(unittest.TestCase):
         self.clock.pump((1,)*3)
         self.assertEqual(self.transport.value(), ACKDatagram(1).to_wire())
         self.assertFalse(self.transport.disconnecting)
-        self.assertFalse(self.wd.active())
         self.addCleanup(self.ws.cancel)
 
     def tearDown(self):
@@ -240,7 +215,7 @@ class LocalOriginWriteOptionNegotiation(unittest.TestCase):
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.ws = LocalOriginWriteSession(('127.0.0.1', 65465), self.writer,
                                           options={b'blksize':b'123'}, _clock=self.clock)
-        self.wd = MockHandshakeWatchdog(4, self.ws.timedOut, _clock=self.clock)
+        self.wd = timedCaller([5], None, self.ws.timedOut, self.clock)
         self.ws.timeout_watchdog = self.wd
         self.ws.transport = self.transport
 
@@ -429,7 +404,7 @@ anotherline"""
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.rs = LocalOriginReadSession(('127.0.0.1', 65465), self.reader, _clock=self.clock)
-        self.wd = MockHandshakeWatchdog(4, self.rs.timedOut, _clock=self.clock)
+        self.wd = timedCaller([5], None, self.rs.timedOut, self.clock)
         self.rs.timeout_watchdog = self.wd
         self.rs.transport = self.transport
         self.rs.startProtocol()
@@ -454,7 +429,6 @@ anotherline"""
         self.clock.advance(2)
         self.assertTrue(self.transport.value())
         self.assertFalse(self.transport.disconnecting)
-        self.assertFalse(self.wd.active())
         self.addCleanup(self.rs.cancel)
 
     def tearDown(self):
@@ -476,7 +450,7 @@ anotherline"""
         self.reader = DelayedReader(self.target, _clock=self.clock, delay=2)
         self.transport = FakeTransport(hostAddress=('127.0.0.1', self.port))
         self.rs = LocalOriginReadSession(('127.0.0.1', 65465), self.reader, _clock=self.clock)
-        self.wd = MockHandshakeWatchdog(4, self.rs.timedOut, _clock=self.clock)
+        self.wd = timedCaller([5], None, self.rs.timedOut, self.clock)
         self.rs.timeout_watchdog = self.wd
         self.rs.transport = self.transport
 
