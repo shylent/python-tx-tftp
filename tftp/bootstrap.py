@@ -1,12 +1,15 @@
 '''
 @author: shylent
 '''
+from functools import partial
+from itertools import chain
 from tftp.datagram import (ACKDatagram, ERRORDatagram, ERR_TID_UNKNOWN,
     TFTPDatagramFactory, split_opcode, OP_OACK, OP_ERROR, OACKDatagram, OP_ACK,
     OP_DATA)
 from tftp.session import WriteSession, MAX_BLOCK_SIZE, ReadSession
-from tftp.util import SequentialCall
+from tftp.util import timedCaller
 from twisted.internet import reactor
+from twisted.internet.defer import succeed
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
 from twisted.python.compat import intToBytes
@@ -57,7 +60,7 @@ class TFTPBootstrap(DatagramProtocol):
             self.options = options
         self.resultant_options = OrderedDict()
         self.remote = remote
-        self.timeout_watchdog = None
+        self.timeout_watchdog = succeed(None)
         self.backend = backend
         if _clock is not None:
             self._clock = _clock
@@ -189,13 +192,16 @@ class TFTPBootstrap(DatagramProtocol):
         log.msg("Got error: %s" % datagram)
         return self.cancel()
 
+    def stopProtocol(self):
+        self.timeout_watchdog.cancel()
+        return DatagramProtocol.stopProtocol(self)
+
     def cancel(self):
         """Terminate this protocol instance. If the underlying
         L{ReadSession}/L{WriteSession} is running, delegate the call to it.
 
         """
-        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-            self.timeout_watchdog.cancel()
+        self.timeout_watchdog.cancel()
         if self.session.started:
             self.session.cancel()
         else:
@@ -204,7 +210,7 @@ class TFTPBootstrap(DatagramProtocol):
 
     def timedOut(self):
         """This protocol instance has timed out during the initial handshake."""
-        log.msg("Timed during option negotiation process")
+        log.msg("Timed out during option negotiation process")
         self.cancel()
 
 
@@ -220,8 +226,6 @@ class LocalOriginWriteSession(TFTPBootstrap):
     def startProtocol(self):
         """Connect the transport and start the L{timeout_watchdog}"""
         self.transport.connect(*self.remote)
-        if self.timeout_watchdog is not None:
-            self.timeout_watchdog.start()
 
     def tftp_OACK(self, datagram):
         """Handle the OACK datagram
@@ -232,8 +236,7 @@ class LocalOriginWriteSession(TFTPBootstrap):
         """
         if not self.session.started:
             self.resultant_options = self.processOptions(datagram.options)
-            if self.timeout_watchdog.active():
-                self.timeout_watchdog.cancel()
+            self.timeout_watchdog.cancel()
             return self.transport.write(ACKDatagram(0).to_wire())
         else:
             log.msg("Duplicate OACK received, send back ACK and ignore")
@@ -243,8 +246,7 @@ class LocalOriginWriteSession(TFTPBootstrap):
         if datagram.opcode == OP_OACK:
             return self.tftp_OACK(datagram)
         elif datagram.opcode == OP_DATA and datagram.blocknum == 1:
-            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-                self.timeout_watchdog.cancel()
+            self.timeout_watchdog.cancel()
             if not self.session.started:
                 self.applyOptions(self.session, self.resultant_options)
                 self.session.transport = self.transport
@@ -276,18 +278,13 @@ class RemoteOriginWriteSession(TFTPBootstrap):
             bytes = OACKDatagram(self.resultant_options).to_wire()
         else:
             bytes = ACKDatagram(0).to_wire()
-        self.timeout_watchdog = SequentialCall.run(
-            self.timeout[:-1],
-            callable=self.transport.write, callable_args=[bytes, ],
-            on_timeout=lambda: self._clock.callLater(self.timeout[-1], self.timedOut),
-            run_now=True,
-            _clock=self._clock
-        )
+        self.timeout_watchdog = timedCaller(
+            chain((0,), self.timeout), partial(self.transport.write, bytes),
+            self.timedOut, clock=self._clock)
 
     def _datagramReceived(self, datagram):
         if datagram.opcode == OP_DATA and datagram.blocknum == 1:
-            if self.timeout_watchdog.active():
-                self.timeout_watchdog.cancel()
+            self.timeout_watchdog.cancel()
             if not self.session.started:
                 self.applyOptions(self.session, self.resultant_options)
                 self.session.transport = self.transport
@@ -309,8 +306,6 @@ class LocalOriginReadSession(TFTPBootstrap):
     def startProtocol(self):
         """Connect the transport and start the L{timeout_watchdog}"""
         self.transport.connect(*self.remote)
-        if self.timeout_watchdog is not None:
-            self.timeout_watchdog.start()
 
     def _datagramReceived(self, datagram):
         if datagram.opcode == OP_OACK:
@@ -319,8 +314,7 @@ class LocalOriginReadSession(TFTPBootstrap):
                     and not self.session.started):
             self.session.transport = self.transport
             self.session.startProtocol()
-            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-                self.timeout_watchdog.cancel()
+            self.timeout_watchdog.cancel()
             return self.session.nextBlock()
         elif self.session.started:
             return self.session.datagramReceived(datagram)
@@ -335,8 +329,7 @@ class LocalOriginReadSession(TFTPBootstrap):
         """
         if not self.session.started:
             self.resultant_options = self.processOptions(datagram.options)
-            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-                self.timeout_watchdog.cancel()
+            self.timeout_watchdog.cancel()
             self.applyOptions(self.session, self.resultant_options)
             self.session.transport = self.transport
             self.session.startProtocol()
@@ -380,13 +373,9 @@ class RemoteOriginReadSession(TFTPBootstrap):
         if self.options:
             self.resultant_options = self.processOptions(self.options)
             bytes = OACKDatagram(self.resultant_options).to_wire()
-            self.timeout_watchdog = SequentialCall.run(
-                self.timeout[:-1],
-                callable=self.transport.write, callable_args=[bytes, ],
-                on_timeout=lambda: self._clock.callLater(self.timeout[-1], self.timedOut),
-                run_now=True,
-                _clock=self._clock
-            )
+            self.timeout_watchdog = timedCaller(
+                chain((0,), self.timeout), partial(self.transport.write, bytes),
+                self.timedOut, clock=self._clock)
         else:
             self.session.transport = self.transport
             self.session.startProtocol()
@@ -406,8 +395,7 @@ class RemoteOriginReadSession(TFTPBootstrap):
         @type datagram: L{ACKDatagram}
 
         """
-        if self.timeout_watchdog is not None:
-            self.timeout_watchdog.cancel()
+        self.timeout_watchdog.cancel()
         if not self.session.started:
             self.applyOptions(self.session, self.resultant_options)
             self.session.transport = self.transport

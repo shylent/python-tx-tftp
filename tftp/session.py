@@ -1,11 +1,12 @@
 '''
 @author: shylent
 '''
+from functools import partial
 from tftp.datagram import (ACKDatagram, ERRORDatagram, OP_DATA, OP_ERROR, ERR_ILLEGAL_OP,
     ERR_DISK_FULL, OP_ACK, DATADatagram, ERR_NOT_DEFINED,)
-from tftp.util import SequentialCall
+from tftp.util import timedCaller
 from twisted.internet import reactor
-from twisted.internet.defer import maybeDeferred
+from twisted.internet.defer import maybeDeferred, succeed
 from twisted.internet.protocol import DatagramProtocol
 from twisted.python import log
 
@@ -41,7 +42,7 @@ class WriteSession(DatagramProtocol):
         self.blocknum = 0
         self.completed = False
         self.started = False
-        self.timeout_watchdog = None
+        self.timeout_watchdog = succeed(None)
         if _clock is None:
             self._clock = reactor
         else:
@@ -52,8 +53,7 @@ class WriteSession(DatagramProtocol):
         and give up the connector.
 
         """
-        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-            self.timeout_watchdog.cancel()
+        self.timeout_watchdog.cancel()
         self.writer.cancel()
         self.transport.stopListening()
 
@@ -97,8 +97,7 @@ class WriteSession(DatagramProtocol):
         @type datagram: L{DATADatagram}
 
         """
-        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-            self.timeout_watchdog.cancel()
+        self.timeout_watchdog.cancel()
         self.blocknum += 1
         d = maybeDeferred(self.writer.write, datagram.data)
         d.addCallbacks(callback=self.blockWriteSuccess, callbackArgs=[datagram, ],
@@ -116,12 +115,9 @@ class WriteSession(DatagramProtocol):
 
         """
         bytes = ACKDatagram(datagram.blocknum).to_wire()
-        self.timeout_watchdog = SequentialCall.run(self.timeout[:-1],
-            callable=self.sendData, callable_args=[bytes, ],
-            on_timeout=lambda: self._clock.callLater(self.timeout[-1], self.timedOut),
-            run_now=True,
-            _clock=self._clock
-        )
+        self.timeout_watchdog = timedCaller(
+            (0,) + self.timeout, partial(self.sendData, bytes),
+            self.timedOut, clock=self._clock)
         if len(datagram.data) < self.block_size:
             self.completed = True
             self.writer.finish()
@@ -185,7 +181,7 @@ class ReadSession(DatagramProtocol):
         self.blocknum = 0
         self.started = False
         self.completed = False
-        self.timeout_watchdog = None
+        self.timeout_watchdog = succeed(None)
         if _clock is None:
             self._clock = reactor
         else:
@@ -197,8 +193,7 @@ class ReadSession(DatagramProtocol):
 
         """
         self.reader.finish()
-        if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-            self.timeout_watchdog.cancel()
+        self.timeout_watchdog.cancel()
         self.transport.stopListening()
 
     def startProtocol(self):
@@ -223,8 +218,7 @@ class ReadSession(DatagramProtocol):
         if datagram.blocknum < self.blocknum:
             log.msg("Duplicate ACK for blocknum %s" % datagram.blocknum)
         elif datagram.blocknum == self.blocknum:
-            if self.timeout_watchdog is not None and self.timeout_watchdog.active():
-                self.timeout_watchdog.cancel()
+            self.timeout_watchdog.cancel()
             if self.completed:
                 log.msg("Final ACK received, transfer successful")
                 self.cancel()
@@ -255,12 +249,9 @@ class ReadSession(DatagramProtocol):
         if len(data) < self.block_size:
             self.completed = True
         bytes = DATADatagram(self.blocknum, data).to_wire()
-        self.timeout_watchdog = SequentialCall.run(self.timeout[:-1],
-            callable=self.sendData, callable_args=[bytes, ],
-            on_timeout=lambda: self._clock.callLater(self.timeout[-1], self.timedOut),
-            run_now=True,
-            _clock=self._clock
-        )
+        self.timeout_watchdog = timedCaller(
+            (0,) + self.timeout, partial(self.sendData, bytes),
+            self.timedOut, clock=self._clock)
 
     def readFailed(self, fail):
         """The reader reported an error. Notify the remote end and cancel the transfer"""
