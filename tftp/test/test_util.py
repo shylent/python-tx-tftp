@@ -20,11 +20,9 @@ class TimedCaller(unittest.TestCase):
             caller = timedCaller(timings, call, last, clock)
         return caller, record
 
-    @inlineCallbacks
-    def test_does_nothing_with_no_timings(self):
-        caller, record = self.makeTimedCaller([])
-        self.assertIs(None, (yield caller))
-        self.assertEqual([], record)
+    def test_raises_ValueError_with_no_timings(self):
+        error = self.assertRaises(ValueError, self.makeTimedCaller, [])
+        self.assertEqual("No timings specified.", str(error))
 
     @inlineCallbacks
     def test_calls_last_with_one_timing(self):

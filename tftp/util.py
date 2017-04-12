@@ -4,7 +4,7 @@
 from functools import wraps
 from itertools import tee
 from twisted.internet import reactor
-from twisted.internet.defer import CancelledError, maybeDeferred, succeed
+from twisted.internet.defer import CancelledError, maybeDeferred
 from twisted.internet.task import deferLater
 
 
@@ -30,6 +30,9 @@ def timedCaller(timings, call, last, clock=reactor):
     successful -- i.e. there is something to cancel -- then the result is set
     to L{CANCELLED}. In other words, L{CancelledError} is squashed into a
     non-failure condition.
+
+    @raise ValueError: if no timings are specified; there must be at least
+        one, even if specifies a zero seconds delay.
     """
     timings = iterlast(timings)
 
@@ -41,8 +44,7 @@ def timedCaller(timings, call, last, clock=reactor):
             else:
                 return deferLater(clock, delay, call).addCallback(iterate)
         else:
-            # No timings were given.
-            return succeed(None)
+            raise ValueError("No timings specified.")
 
     def squashCancelled(failure):
         if failure.check(CancelledError) is None:
