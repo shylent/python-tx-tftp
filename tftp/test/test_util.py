@@ -10,7 +10,7 @@ from twisted.trial import unittest
 class TimedCaller(unittest.TestCase):
 
     @staticmethod
-    def makeTimedCaller(*timings, clock=None):
+    def makeTimedCaller(timings, clock=None):
         record = []
         call = lambda: record.append("call")
         last = lambda: record.append("last")
@@ -22,25 +22,25 @@ class TimedCaller(unittest.TestCase):
 
     @inlineCallbacks
     def test_does_nothing_with_no_timings(self):
-        caller, record = self.makeTimedCaller()
+        caller, record = self.makeTimedCaller([])
         self.assertIs(None, (yield caller))
         self.assertEqual([], record)
 
     @inlineCallbacks
     def test_calls_last_with_one_timing(self):
-        caller, record = self.makeTimedCaller(0)
+        caller, record = self.makeTimedCaller([0])
         self.assertIs(None, (yield caller))
         self.assertEqual(["last"], record)
 
     @inlineCallbacks
     def test_calls_both_functions_with_multiple_timings(self):
-        caller, record = self.makeTimedCaller(0, 0)
+        caller, record = self.makeTimedCaller([0, 0])
         self.assertIs(None, (yield caller))
         self.assertEqual(["call", "last"], record)
 
     def test_pauses_between_calls(self):
         clock = Clock()
-        caller, record = self.makeTimedCaller(1, 2, 3, clock=clock)
+        caller, record = self.makeTimedCaller([1, 2, 3], clock=clock)
         self.assertEqual([], record)
         clock.advance(1)
         self.assertEqual(["call"], record)
@@ -52,7 +52,7 @@ class TimedCaller(unittest.TestCase):
 
     def test_can_be_cancelled(self):
         clock = Clock()
-        caller, record = self.makeTimedCaller(1, 2, 3, clock=clock)
+        caller, record = self.makeTimedCaller([1, 2, 3], clock=clock)
         self.assertEqual([], record)
         clock.advance(1)
         self.assertEqual(["call"], record)

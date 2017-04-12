@@ -27,8 +27,8 @@ def timedCaller(timings, call, last, clock=reactor):
     infinite iterable then C{last} will never be called.
 
     This returns a C{Deferred} which can be cancelled. If the cancellation is
-    successful — i.e. there is something to cancel — then the result is set to
-    L{CANCELLED}. In other words, L{CancelledError} is squashed into a
+    successful -- i.e. there is something to cancel -- then the result is set
+    to L{CANCELLED}. In other words, L{CancelledError} is squashed into a
     non-failure condition.
     """
     timings = iterlast(timings)

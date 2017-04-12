@@ -194,7 +194,7 @@ class TFTPBootstrap(DatagramProtocol):
 
     def stopProtocol(self):
         self.timeout_watchdog.cancel()
-        return super(TFTPBootstrap, self).stopProtocol()
+        return DatagramProtocol.stopProtocol(self)
 
     def cancel(self):
         """Terminate this protocol instance. If the underlying
